@@ -270,8 +270,15 @@ function toggleNotifications() {
     const dropdown = document.getElementById('noti-dropdown');
     dropdown.classList.toggle('hidden');
     
-    if (!dropdown.classList.contains('hidden') && currentUser) { // Added credentials
-        fetch(`/api/notifications/mark-read/${currentUser.id}`, { method: 'POST', credentials: 'include' });
+    if (!dropdown.classList.contains('hidden') && currentUser) {
+        fetch(`/api/notifications/mark-read`, { 
+            method: 'POST', 
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userId: currentUser.id })
+        });
         document.getElementById('user-noti-count').classList.add('hidden');
     }
 }

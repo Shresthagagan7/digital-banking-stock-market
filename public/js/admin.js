@@ -1,5 +1,6 @@
 let allUsers = []; 
 let allPendingUsers = [];
+let currentAdmin = null;
 
 function escapeHTML(str) {
     const div = document.createElement('div');
@@ -20,6 +21,7 @@ async function checkAdminSessionAndFetchData() {
         if (res.ok) {
             const { user } = await res.json();
             if (user && user.role === 'admin') {
+                currentAdmin = user;
                 fetchAdminData(user); // User is an admin, fetch data
             } else {
                 logoutAdmin();
@@ -103,6 +105,7 @@ function renderPendingUsers(pendingUsers) {
         <tr>
             <td>${escapeHTML(u.first_name)} ${escapeHTML(u.last_name)}</td>
             <td>${escapeHTML(u.account_number)}</td>
+            <td>${escapeHTML(u.phone_number)}</td>
             <td>
                 <button onclick="approveUser(${u.id})" style="padding: 5px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer;">Approve</button>
                 <button onclick="deleteUser(${u.id})" style="padding: 5px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px;">Reject</button>
@@ -111,15 +114,15 @@ function renderPendingUsers(pendingUsers) {
     `).join('');
 }
 
-function renderUsers(users, filter) {
-        const tableBody = document.getElementById('user-table-body');
+function renderUsers(users, filter = "") {
+    const tableBody = document.getElementById('user-table-body');
     const filtered = users.filter(u => 
         u.first_name.toLowerCase().includes(filter.toLowerCase()) || 
         u.account_number.includes(filter)
     );
 
     tableBody.innerHTML = filtered.map(user => `
-            <tr>
+        <tr>
                 <td>${escapeHTML(user.first_name)} ${escapeHTML(user.last_name)}</td>
                 <td>${escapeHTML(user.account_number)}</td> 
                 <td>${escapeHTML(user.phone_number)}</td>
@@ -182,15 +185,23 @@ async function approveUser(userId) {
     }
 }
 
-function toggleNotifications() {
+async function toggleNotifications() {
     const dropdown = document.getElementById('noti-dropdown');
     dropdown.classList.toggle('hidden');
     
-    // This part needs the user ID, which we get from the session check.
-    // For simplicity, we'll just hide the count. A better implementation might re-fetch user data.
-    if (!dropdown.classList.contains('hidden')) {
-        // The backend needs to know the user ID to mark notifications as read.
-        document.getElementById('noti-count').style.display = 'none';
+    if (!dropdown.classList.contains('hidden') && currentAdmin) {
+        try {
+            const res = await fetch('/api/notifications/mark-read', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (res.ok) {
+                document.getElementById('noti-count').style.display = 'none';
+            }
+        } catch (error) {
+            console.error("Failed to mark notifications as read:", error);
+        }
     }
 }
 

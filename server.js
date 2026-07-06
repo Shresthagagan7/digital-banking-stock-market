@@ -228,9 +228,9 @@ app.post('/api/change-password', async (req, res) => {
     });
 });
 
-app.post('/api/notifications/mark-read', authenticateToken, (req, res) => {
-    const userId = req.user.id;
-    db.query("UPDATE notifications SET is_read = TRUE WHERE user_id = ?", [userId], (err) => {
+app.post('/api/notifications/mark-read/:userId', authenticateToken, (req, res) => {
+    const userIdToUpdate = req.params.userId;
+    db.query("UPDATE notifications SET is_read = TRUE WHERE user_id = ?", [userIdToUpdate], (err) => {
         if (err) return res.status(500).send(err);
         res.json({ message: "Notifications marked as read" });
     });
