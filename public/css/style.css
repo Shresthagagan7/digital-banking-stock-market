@@ -9,11 +9,8 @@
 
 body {
 
-    background: linear-gradient(-45deg, #1e3c72, #2a5298, #24c6dc, #514a9d);
+    background: white;
     background-size: 400% 400%;
-    animation: gradientBG 10s ease infinite;
-    min-height: 100vh;
-    overflow-x: hidden;
     margin: 0;
 }
 
