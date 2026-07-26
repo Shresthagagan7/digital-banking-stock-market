@@ -5,19 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>mero-Bank | Admin Panel</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dark-mode.css">
 </head>
 <body class="dashboard-wrapper" id="admin-dashboard-container">
     <header class="dash-header">
         <div class="bank-logo">mero-Bank Admin</div>
         <div class="header-right">
+            <div class="theme-switch-wrapper">
+                <label class="theme-switch" for="dark-mode-toggle-admin">
+                    <input type="checkbox" id="dark-mode-toggle-admin" />
+                    <span class="slider round"></span>
+                </label>
+            </div>
             <div class="header-icons">
+                <div class="user-info" style="display: flex; align-items: center; gap: 10px; color: white;">
+                    <span id="admin-name" style="font-weight: 600;">Admin</span>
+                </div>
                 <div class="noti-container" style="position: relative; cursor: pointer;" onclick="toggleNotifications()">
                     🔔 <span id="noti-count" style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; position: absolute; top: -5px; right: -5px;">0</span>
                     <div id="noti-dropdown" class="noti-dropdown hidden">
                         <h4>Notifications</h4>
-                        <div class="user-info" style="display: flex; align-items: center; gap: 10px;">
-                            <span id="admin-name" style="font-weight: 600;">Admin</span>
-                        </div>
                         <div id="noti-list">No new notifications</div>
                     </div>
                 </div>

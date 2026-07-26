@@ -5,6 +5,7 @@
     <title>Digital Banking System</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/dark-mode.css">
 </head>
 <body style="margin: 0; padding: 0;">
     <div id="app" class="centered-view">
@@ -112,6 +113,12 @@
                         <input type="text" id="search-transactions" placeholder="Search for transactions..." oninput="filterTransactions()">
                     </div>
                     <div class="header-icons">
+                    <div class="theme-switch-wrapper">
+                        <label class="theme-switch" for="dark-mode-toggle-user">
+                            <input type="checkbox" id="dark-mode-toggle-user" />
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
                     <div class="noti-container">
                         <div class="noti-bell" onclick="toggleNotifications()">🔔</div>
                         <span id="user-noti-count" class="hidden" style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; position: absolute; top: -5px; right: -5px;">0</span>
@@ -155,7 +162,7 @@
                         <li onclick="alert('Reports feature coming soon!')">🗒️ Reports</li>
                         <li onclick="alert('Click profile icon in header to edit profile.')">👤 Profile</li>
                         <li onclick="showDashboardPanel('change-password-section')">⚙️ Settings</li>
-                        <li onclick="logout()" style="margin-top: auto; background: #c0392b;">🚪 Logout</li>
+                        <li onclick="laveogout()" style="margin-top: auto; background: #c0392b;">🚪 Logout</li>
                     </ul>
                 </aside>
 
@@ -217,6 +224,10 @@
                         <div class="my-section">
                             <h3>SHARE MARKET</h3>
                             <div class="options-grid">
+                                <div class="option-card" onclick="openMyAsba()">
+                                    <div class="icon">🏦</div>
+                                    <p>My ASBA</p>
+                                </div>
                                 <div class="option-card" onclick="showDashboardPanel('share-market-section')">
                                     <div class="icon">📈</div>
                                     <p>Portfolio</p>
@@ -640,6 +651,104 @@
                     </select>
                     <button onclick="processFD()" style="background: #27ae60;">Create FD Account</button>
                     <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6; margin-top: 10px;">Back</button>
+                </div>
+
+                <!-- My ASBA Section -->
+                <div id="my-asba-section" class="container hidden" style="max-width: 950px; text-align: left; padding: 30px;">
+                    <h2 style="margin-bottom: 15px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">My ASBA</h2>
+
+                    <!-- ASBA Tabs -->
+                    <div class="account-tabs" style="display: flex; gap: 5px; margin-bottom: 20px; border-bottom: 1px solid #ddd;">
+                        <button class="tab-btn active-tab" onclick="switchAsbaTab('asba-apply-tab')">Apply for Issue</button>
+                        <button class="tab-btn" onclick="switchAsbaTab('asba-upcoming-tab')">Current Issue</button>
+                        <button class="tab-btn" onclick="switchAsbaTab('asba-report-tab')">Application Report</button>
+                    </div>
+
+                    <!-- Apply for Issue Tab -->
+                    <div id="asba-apply-tab" class="asba-tab-content">
+                        <div class="my-section admin-table-container">
+                            <h3>Open Issues (Apply Now)</h3>
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Company</th>
+                                        <th>Symbol</th>
+                                        <th>Price/Unit</th>
+                                        <th>Closes On</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="asba-open-issues-body">
+                                    <!-- Data will be loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Current/Upcoming Issue Tab -->
+                    <div id="asba-upcoming-tab" class="asba-tab-content hidden">
+                        <div class="my-section admin-table-container">
+                            <h3>Upcoming Issues</h3>
+                            <table class="admin-table">
+                                <thead>
+                                    <tr><th>Company</th><th>Symbol</th><th>Opens On</th><th>Closes On</th></tr>
+                                </thead>
+                                <tbody id="asba-upcoming-issues-body">
+                                    <!-- Data will be loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Application Report Tab -->
+                    <div id="asba-report-tab" class="asba-tab-content hidden">
+                        <div class="my-section admin-table-container">
+                            <h3>My Application Report</h3>
+                            <table class="admin-table">
+                                <thead>
+                                    <tr><th>Applied Date</th><th>Company</th><th>Applied Units</th><th>Status</th></tr>
+                                </thead>
+                                <tbody id="asba-my-applications-body">
+                                    <!-- Data will be loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <button onclick="showDashboardPanel('main-view')" style="margin-top: 30px; background: #95a5a6; width: 200px;">Back to Dashboard</button>
+                </div>
+
+                <!-- Share Application Form Panel -->
+                <div id="share-application-panel" class="container hidden" style="max-width: 600px; text-align: left; padding: 30px;">
+                    <h2 style="margin-bottom: 25px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">Apply for Share</h2>
+                    
+                    <div class="form-grid" style="grid-template-columns: 1fr; gap: 15px;">
+                        <div class="details-box" style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 8px;">
+                            <p><strong>Company:</strong> <span id="apply-company-name"></span></p>
+                            <p><strong>Symbol:</strong> <span id="apply-symbol"></span></p>
+                            <p><strong>Price per Unit:</strong> Rs. <span id="apply-price"></span></p>
+                        </div>
+
+                        <div>
+                            <label for="apply-units">Number of Units (Minimum 10)</label>
+                            <input type="number" id="apply-units" placeholder="e.g., 10, 20, 30..." min="10" oninput="calculateApplyAmount()">
+                        </div>
+
+                        <div>
+                            <label>Total Amount</label>
+                            <input type="text" id="apply-total-amount" value="Rs. 0.00" readonly style="background: #eee; font-weight: bold; color: #2c3e50;">
+                        </div>
+
+                        <div>
+                            <label for="apply-pin">Transaction PIN</label>
+                            <input type="password" id="apply-pin" placeholder="Enter your 4-digit PIN" maxlength="4" style="font-size: 1.2em; text-align: center;">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; margin-top: 30px;">
+                        <button id="confirm-apply-btn" onclick="confirmShareApplication()" class="action-btn-green" style="flex-grow: 1;">Confirm Application</button>
+                        <button onclick="openMyAsba()" style="background: #95a5a6; width: 150px;">Cancel</button>
+                    </div>
                 </div>
 
                 <div class="account-services-section">

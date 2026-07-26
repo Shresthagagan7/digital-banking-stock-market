@@ -1,5 +1,6 @@
 let allUsers = []; 
 let allPendingUsers = [];
+let allStocks = [];
 let currentAdmin = null;
 
 function escapeHTML(str) {
@@ -9,9 +10,39 @@ function escapeHTML(str) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    const darkModeToggle = document.getElementById('dark-mode-toggle-admin');
+    const isAdminPanel = !!document.getElementById('admin-dashboard-container');
+    const isShareAdminPanel = !!document.getElementById('share-admin-dashboard-container');
+    
+    let themeKey = 'theme'; // Default
+    if (isAdminPanel) themeKey = 'admin_theme';
+    if (isShareAdminPanel) themeKey = 'share_admin_theme';
+
+    if (darkModeToggle) {
+        const currentTheme = localStorage.getItem(themeKey);
+
+        if (currentTheme === 'dark') {
+            document.body.classList.add('dark-mode');
+            darkModeToggle.checked = true;
+        }
+
+        darkModeToggle.addEventListener('change', function() {
+            if (this.checked) {
+                document.body.classList.add('dark-mode');
+                localStorage.setItem(themeKey, 'dark');
+            } else {
+                document.body.classList.remove('dark-mode');
+                localStorage.setItem(themeKey, 'light');
+            }
+        });
+    }
     // Check if we are on the admin panel page.
     if (document.getElementById('admin-dashboard-container')) {
         checkAdminSessionAndFetchData();
+    }
+    // Check if we are on the share admin panel page.
+    if (document.getElementById('share-admin-dashboard-container')) {
+        checkAdminSessionAndFetchShareData();
     }
 });
 
@@ -20,8 +51,11 @@ async function checkAdminSessionAndFetchData() {
         const res = await fetch('/api/check-session', { credentials: 'include' });
         if (res.ok) {
             const { user } = await res.json();
-            if (user && user.role === 'admin') {
+            if (user && (user.role === 'admin' || user.role === 'share_admin')) {
                 currentAdmin = user;
+                // Redirect if wrong admin is on wrong panel
+                if (user.role === 'admin' && !document.getElementById('admin-dashboard-container')) window.location.href = '/admin-panel';
+                if (user.role === 'share_admin' && !document.getElementById('share-admin-dashboard-container')) window.location.href = '/share-admin-panel';
                 fetchAdminData(user); // User is an admin, fetch data
             } else {
                 logoutAdmin();
@@ -278,3 +312,96 @@ async function logoutAdmin() {
 
 // Make sure to update any HTML that calls logoutAdmin() to call this new async version.
 // e.g. <button onclick="logoutAdmin()">Logout</button>
+
+/* --- SHARE ADMIN PANEL FUNCTIONS --- */
+
+function showShareAdminPanel(panelId) {
+    // Hide all direct children of dash-main
+    document.querySelectorAll('.dash-main > div').forEach(div => {
+        div.classList.add('hidden');
+    });
+
+    // Show the requested panel
+    const panelToShow = document.getElementById(panelId);
+    if (panelToShow) {
+        panelToShow.classList.remove('hidden');
+    }
+}
+
+async function checkAdminSessionAndFetchShareData() {
+    try {
+        const res = await fetch('/api/check-session', { credentials: 'include' });
+        if (res.ok) {
+            const { user } = await res.json();
+            if (user && user.role === 'share_admin') {
+                currentAdmin = user;
+                document.getElementById('admin-name').innerText = `${user.first_name} ${user.last_name}`;
+                showShareAdminPanel('share-admin-main-view'); // Show main view on load
+                // TODO: Fetch data for both panels
+                // fetchAllShareData(); 
+            } else {
+                logoutAdmin(); // Not a share admin or session expired
+            }
+        } else {
+            logoutAdmin();
+        }
+    } catch (error) {
+        console.error('Share Admin session check failed:', error);
+        logoutAdmin();
+    }
+}
+
+async function addShareOffering() {
+    const offeringType = document.getElementById('offering-type').value;
+    const companyName = document.getElementById('offering-company').value;
+    const symbol = document.getElementById('offering-symbol').value.toUpperCase();
+    const totalUnits = document.getElementById('offering-units').value;
+    const price = document.getElementById('offering-price').value;
+    const openDate = document.getElementById('offering-open-date').value;
+    const closeDate = document.getElementById('offering-close-date').value;
+
+    if (!offeringType || !companyName || !symbol || !totalUnits || !price || !openDate || !closeDate) {
+        return alert("Please fill all required fields marked with *");
+    }
+
+    const res = await fetch('/api/share-admin/offerings', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offeringType, companyName, symbol, totalUnits, price, openDate, closeDate })
+    });
+
+    if (res.ok) {
+        alert("New share offering added successfully!");
+        document.getElementById('add-offering-form').reset(); // This won't work on divs, clear manually
+        // TODO: Refresh the list of offerings in the table
+    } else {
+        const err = await res.json();
+        alert("Failed to add offering: " + err.message);
+    }
+}
+
+async function addStock() {
+    const name = document.getElementById('stock-name').value;
+    const symbol = document.getElementById('stock-symbol').value.toUpperCase();
+    const price = document.getElementById('stock-price').value;
+
+    if (!name || !symbol || !price) {
+        return alert("Please fill all required fields for adding a stock.");
+    }
+
+    const res = await fetch('/api/share-admin/stocks', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, symbol, current_price: price })
+    });
+
+    if (res.ok) {
+        alert(`Stock ${symbol} has been listed successfully!`);
+        // TODO: Refresh the stock list table
+    } else {
+        const err = await res.json();
+        alert("Failed to add stock: " + err.message);
+    }
+}

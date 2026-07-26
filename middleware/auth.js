@@ -22,3 +22,14 @@ exports.isAdmin = (req, res, next) => {
         res.status(403).json({ message: "Access Denied: Admin privileges required" });
     }
 };
+
+exports.isShareAdmin = (req, res, next) => {
+    const userRole = (req.user && req.user.role) ? req.user.role.toLowerCase() : '';
+    // Allow both 'admin' and 'share_admin' to manage shares
+    if (req.user && (userRole === 'share_admin' || userRole === 'admin')) {
+        next();
+    } else {
+        console.log(`Access Denied for user ID: ${req.user ? req.user.id : 'Unknown'}, Role: ${req.user ? req.user.role : 'None'}`);
+        res.status(403).json({ message: "Access Denied: Share Admin privileges required" });
+    }
+};

@@ -171,16 +171,16 @@ a:hover { text-decoration: underline; }
     object-fit: cover;
 }
 
-.greeting-text h3 { color: #7f8c8d; font-weight: 400; font-size: 18px; }
-.greeting-text h2 { color: #2c3e50; font-size: 26px; }
+.greeting-text h3 { color: #dc231d; font-weight: 400; font-size: 18px; }
+.greeting-text h2 { color: #1165b8; font-size: 26px; }
 
 .account-card {
     background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
     color: white;
     padding: 30px;
-    border-radius: 20px;
-    width: 400px;
-    box-shadow: 0 15px 35px rgba(30, 60, 114, 0.3);
+    border-radius: 30px;
+    width: 1200px;
+    box-shadow: 0 15px 35px rgba(23, 17, 193, 0.3);
     position: relative;
     overflow: hidden;
     animation: fadeInUp 0.8s ease-out;
@@ -191,16 +191,16 @@ a:hover { text-decoration: underline; }
     position: absolute;
     top: -50px; right: -50px;
     width: 150px; height: 150px;
-    background: rgba(255,255,255,0.1);
+    background: rgba(229, 186, 46, 0.1);
     border-radius: 50%;
 }
 
-.acc-type { font-size: 12px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
-.acc-label { margin-top: 20px; font-size: 13px; opacity: 0.7; }
+.acc-type { font-size: 12px; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; text-color: #f5efef; }
+.acc-label { margin-top: 20px; font-size: 13px; opacity: 0.7; color: #f5efef; }
 .balance-row { display: flex; align-items: center; gap: 15px; margin-top: 5px; }
 #toggle-eye {
     width: auto; background: none; padding: 0; margin: 0;
-    font-size: 20px; cursor: pointer; color: #fff;
+    font-size: 20px; cursor: pointer; color: #f5efef;
 }
 
 .logout-btn {

@@ -1,4 +1,5 @@
 const db = require('../db');
+const bcrypt = require('bcryptjs');
 
 exports.buyShare = async (req, res) => {
     const userId = req.user.id;
@@ -142,6 +143,103 @@ exports.createFD = async (req, res) => {
 exports.getFDs = async (req, res) => {
     const [rows] = await db.promise().query("SELECT * FROM fixed_deposits WHERE user_id = ?", [req.user.id]);
     res.json(rows);
+};
+
+exports.scheduleTransfer = async (req, res) => {
+    res.json({ message: "Transaction scheduled successfully!" });
+};
+
+// --- ASBA CONTROLLERS ---
+
+exports.getOpenOfferings = async (req, res) => {
+    try {
+        // Fetches offerings that are currently open for application
+        const [offerings] = await db.promise().query(
+            "SELECT id, company_name, symbol, price_per_unit, close_date FROM share_offerings WHERE status = 'open' AND close_date >= CURDATE() ORDER BY close_date ASC"
+        );
+        res.json(offerings);
+    } catch (err) {
+        console.error("Error fetching open offerings:", err);
+        res.status(500).json({ message: "Server error fetching open offerings." });
+    }
+};
+
+exports.getUpcomingOfferings = async (req, res) => {
+    try {
+        // Fetches offerings that are not yet open
+        const [offerings] = await db.promise().query(
+            "SELECT company_name, symbol, open_date, close_date FROM share_offerings WHERE status = 'upcoming' AND open_date > CURDATE() ORDER BY open_date ASC"
+        );
+        res.json(offerings);
+    } catch (err) {
+        console.error("Error fetching upcoming offerings:", err);
+        res.status(500).json({ message: "Server error fetching upcoming offerings." });
+    }
+};
+
+exports.getMyApplications = async (req, res) => {
+    try {
+        const sql = `
+            SELECT sa.applied_at, so.company_name, sa.applied_units, sa.status, sa.offering_id, so.symbol, so.price_per_unit
+            FROM share_applications sa
+            JOIN share_offerings so ON sa.offering_id = so.id
+            WHERE sa.user_id = ?
+            ORDER BY sa.applied_at DESC
+        `;
+        const [applications] = await db.promise().query(sql, [req.user.id]);
+        res.json(applications);
+    } catch (err) {
+        console.error("Error fetching user's share applications:", err);
+        res.status(500).json({ message: "Server error fetching your applications." });
+    }
+};
+
+exports.applyForShare = async (req, res) => {
+    const userId = req.user.id;
+    const { offeringId, units, pin } = req.body;
+
+    const connection = await db.promise().getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Verify Transaction PIN and get user details
+        const [users] = await connection.query("SELECT balance, hold_balance, transaction_pin FROM users WHERE id = ?", [userId]);
+        if (users.length === 0) throw new Error("User not found.");
+        const user = users[0];
+
+        const isPinMatch = await bcrypt.compare(pin, user.transaction_pin);
+        if (!isPinMatch) throw new Error("Incorrect Transaction PIN.");
+
+        // 2. Get offering details and calculate amount
+        const [offerings] = await connection.query("SELECT price_per_unit, company_name FROM share_offerings WHERE id = ? AND status = 'open'", [offeringId]);
+        if (offerings.length === 0) throw new Error("This share is not open for application or does not exist.");
+        const offering = offerings[0];
+        const totalAmount = units * offering.price_per_unit;
+
+        // 3. Check balance
+        if (user.balance < totalAmount) throw new Error("Insufficient balance.");
+
+        // 4. Block amount from user's balance
+        await connection.query("UPDATE users SET balance = balance - ?, hold_balance = hold_balance + ? WHERE id = ?", [totalAmount, totalAmount, userId]);
+
+        // 5. Record the application
+        await connection.query(
+            "INSERT INTO share_applications (user_id, offering_id, applied_units, applied_amount) VALUES (?, ?, ?, ?)",
+            [userId, offeringId, units, totalAmount]
+        );
+
+        await connection.commit();
+        res.status(201).json({ message: `Successfully applied for ${units} units of ${offering.company_name}. Rs. ${totalAmount.toLocaleString()} has been blocked from your account.` });
+    } catch (err) {
+        await connection.rollback();
+        // Check for duplicate entry error
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ message: "You have already applied for this share." });
+        }
+        res.status(400).json({ message: err.message || "Failed to apply for share." });
+    } finally {
+        connection.release();
+    }
 };
 
 exports.scheduleTransfer = async (req, res) => {

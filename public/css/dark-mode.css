@@ -1,0 +1,124 @@
+/* --- Dark Mode Toggle Switch --- */
+.theme-switch-wrapper {
+    display: flex;
+    align-items: center;
+    margin-right: 15px;
+}
+.theme-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+.theme-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+input:checked + .slider {
+    background-color: #2196F3;
+}
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+.slider:before {
+    content: '☀️';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+input:checked + .slider:before {
+    content: '🌙';
+}
+
+/* --- Dark Mode Styles --- */
+body.dark-mode {
+    background-color: #121212;
+    color: #e0e0e0;
+}
+
+.dark-mode .container,
+.dark-mode .dashboard-wrapper,
+.dark-mode .dashboard-container,
+.dark-mode .admin-dashboard-container {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+
+.dark-mode .dash-header {
+    background-color: #2c3e50;
+    border-bottom: 1px solid #3a4a5b;
+}
+
+.dark-mode .dash-main {
+    background-color: #121212;
+}
+
+.dark-mode .welcome-bar,
+.dark-mode .account-card,
+.dark-mode .my-section,
+.dark-mode .option-card,
+.dark-mode .admin-table-container,
+.dark-mode .details-box,
+.dark-mode .admin-panel {
+    /* Use a slightly lighter dark shade for cards */
+    background-color: #1e1e1e; 
+    border-color: #3a3a3a;
+    box-shadow: none;
+}
+
+.dark-mode h2, .dark-mode h3, .dark-mode h4, .dark-mode .section-title, .dark-mode .bank-logo {
+    color: #ffffff;
+}
+
+.dark-mode .account-card, .dark-mode .account-card h2, .dark-mode .account-card h4, .dark-mode .account-card p {
+    color: #f1f1f1;
+}
+
+.dark-mode input, 
+.dark-mode select,
+.dark-mode .search-box input {
+    background-color: #333;
+    color: #f1f1f1;
+    border: 1px solid #555;
+}
+
+.dark-mode .admin-table tr:nth-child(even) {
+    background-color: #2c2c2c;
+}
+
+.dark-mode .admin-table th {
+    background-color: #3a3a3a;
+}
+
+.dark-mode .admin-table td, .dark-mode .admin-table th {
+    border-color: #444;
+}
+
+.dark-mode .back-btn {
+    background-color: #444;
+    color: #fff;
+}

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>mero-Bank | Share Admin</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/dark-mode.css">
+</head>
+<body class="dashboard-wrapper">
+    <div id="share-admin-dashboard-container" class="dashboard-container">
+        <header class="dash-header">
+            <div class="bank-logo">Share Updates Dashboard</div>
+            <div class="header-right">
+                <div class="theme-switch-wrapper">
+                    <label class="theme-switch" for="dark-mode-toggle-admin">
+                        <input type="checkbox" id="dark-mode-toggle-admin" />
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <div class="user-info" style="display: flex; align-items: center; gap: 10px; color: white;">
+                    <span id="admin-name" style="font-weight: 600;">Share Admin</span>
+                </div>
+                <button onclick="logoutAdmin()" class="logout-btn">Logout</button>
+            </div>
+        </header>
+
+        <main class="dash-main">
+            <!-- Main Dashboard View with Option Cards -->
+            <div id="share-admin-main-view">
+                <div class="my-section">
+                    <h3 class="section-title">Share Updates</h3>
+                    <div class="options-grid">
+                        <!-- Add New Share (IPO/FPO) -->
+                        <div class="option-card" onclick="showShareAdminPanel('add-offering-panel')">
+                            <h4>Add New Share (IPO)</h4>
+                            
+                        </div>
+                        <!-- Select Share Holder -->
+                        <div class="option-card" onclick="showShareAdminPanel('allotment-panel')">
+                            <h4>Select Share Holder</h4>
+                            
+                        </div>
+                        <!-- Update Share Price -->
+                        <div class="option-card" onclick="showShareAdminPanel('update-price-panel')">
+                            <h4>Update Share Price</h4>
+                            
+                        </div>
+                        <!-- List New Stock for Trading -->
+                        <div class="option-card" onclick="showShareAdminPanel('list-stock-panel')">
+                            <h4>List New Stock</h4>
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel for Add New Offering -->
+            <div id="add-offering-panel" class="admin-panel hidden">
+                <button class="back-btn" onclick="showShareAdminPanel('share-admin-main-view')">← Back to Dashboard</button>
+                <div class="my-section admin-table-container">
+                    <h3>Add New Share Offering (IPO/FPO)</h3>
+                    
+                    <div id="add-offering-form" class="form-grid" style="grid-template-columns: 1fr 1fr; gap: 15px; background: #f9f9f9; padding: 20px; border-radius: 8px; margin-top: 15px;">
+                        <div>
+                            <label>Offering Type *</label>
+                            <select id="offering-type" required>
+                                <option value="IPO">IPO (Initial Public Offering)</option>
+                                <option value="FPO">FPO (Further Public Offering)</option>
+                            </select>
+                        </div>
+                        <input type="text" id="offering-company" placeholder="Company Name *" required>
+                        <input type="text" id="offering-symbol" placeholder="Stock Symbol *" required style="text-transform: uppercase;">
+                        <input type="number" id="offering-units" placeholder="Total Units Offered *" required>
+                        <input type="number" id="offering-price" placeholder="Price per Unit (e.g., 100) *" required>
+                        <div><label>Opening Date *</label><input type="date" id="offering-open-date" required></div>
+                        <div><label>Closing Date *</label><input type="date" id="offering-close-date" required></div>
+                    </div>
+                    <button onclick="addShareOffering()" class="action-btn-green" style="margin-top: 20px;">Add Offering</button>
+                </div>
+            </div>
+
+            <!-- Panel for Allot Shares -->
+            <div id="allotment-panel" class="admin-panel hidden">
+                <button class="back-btn" onclick="showShareAdminPanel('share-admin-main-view')">← Back to Dashboard</button>
+                <div class="my-section admin-table-container">
+                    <h3>Select Share Holder (Allotment)</h3>
+                    
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Company</th><th>Symbol</th><th>Status</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="offerings-for-allotment-body">
+                            <!-- Data will be loaded here -->
+                            <tr><td>(Sample) Himalayan Reinsurance</td><td>HRL</td><td>Closed</td><td><button class="action-btn-blue">View Applicants & Allot</button></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Panel for List New Stock -->
+            <div id="list-stock-panel" class="admin-panel hidden">
+                <button class="back-btn" onclick="showShareAdminPanel('share-admin-main-view')">← Back to Dashboard</button>
+                <div class="my-section admin-table-container">
+                    <h3>Add New Share to Market</h3>
+                    
+                    <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 15px; background: #f9f9f9; padding: 20px; border-radius: 8px; margin-top: 15px;">
+                        <input type="text" id="stock-name" placeholder="Company Name *" required>
+                        <input type="text" id="stock-symbol" placeholder="Stock Symbol *" required style="text-transform: uppercase;">
+                        <input type="number" id="stock-price" placeholder="Initial Listing Price *" required>
+                    </div>
+                    <button onclick="addStock()" class="action-btn-green" style="margin-top: 20px;">Add Stock</button>
+                </div>
+            </div>
+
+            <!-- Panel for Update Stock Prices -->
+            <div id="update-price-panel" class="admin-panel hidden">
+                <button class="back-btn" onclick="showShareAdminPanel('share-admin-main-view')">← Back to Dashboard</button>
+                <div class="my-section admin-table-container">
+                    <h3>Update Share Price</h3>
+                   
+                    <table class="admin-table">
+                        <thead>
+                            <tr><th>Symbol</th><th>Company</th><th>Current Price</th><th>New Price</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="stocks-for-update-body">
+                            <!-- Data will be loaded here -->
+                            <tr><td>(Sample) NICA</td><td>NIC Asia Bank</td><td>Rs. 750.00</td><td><input type="number" placeholder="Enter new price"></td><td><button class="action-btn-blue">Update</button></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+    </div>
+    <script src="js/admin.js"></script>
+</body>
+</html>

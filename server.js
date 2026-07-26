@@ -11,23 +11,33 @@ const JWT_SECRET = process.env.JWT_SECRET || 'gagan_banking_secret_key_123';
 const REFRESH_SECRET = process.env.REFRESH_SECRET || 'gagan_refresh_key_456';
 const adminRoutes = require('./routes/admin');
 const userController = require('./controllers/userController');
+const shareAdminRoutes = require('./routes/shareAdmin');
 const { authenticateToken } = require('./middleware/auth');
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(express.static('public'));
-
 // All admin routes are handled by adminRoutes
 app.use('/api/admin', adminRoutes);
+// All share admin routes
+app.use('/api/share-admin', shareAdminRoutes);
 
 app.get('/admin-panel', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
+app.get('/share-admin-panel', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'share-admin.html'));
+});
+
+app.get('/share-admin-login', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'share-admin-login.html'));
+});
+
 app.get('/api/check-session', authenticateToken, async (req, res) => {
     try {
-        const [users] = await db.promise().query("SELECT id, first_name, last_name, account_number, balance, role, status, profile_pic, branch FROM users WHERE id = ?", [req.user.id]);
+        const [users] = await db.promise().query("SELECT id, first_name, last_name, account_number, balance, hold_balance, role, status, profile_pic, branch FROM users WHERE id = ?", [req.user.id]);
         if (users.length === 0) {
             return res.status(404).json({ message: "User not found." });
         }
@@ -134,12 +144,19 @@ app.post('/api/login', async (req, res) => {
             const userRole = user.role || 'user';
             const userStatus = user.status || 'pending';
 
-            if (userRole === 'user' && userStatus !== 'active') {
+            if (userRole === 'user' && userStatus !== 'active' && userStatus !== 'approved') { // 'approved' is also a valid state
                 return res.status(403).json({ message: `Access Denied: Your account status is '${userStatus}'. Please contact Admin.` });
             }
 
-            const token = jwt.sign({ id: user.id, role: userRole }, JWT_SECRET, { expiresIn: '15m' });
-            const refreshToken = jwt.sign({ id: user.id }, REFRESH_SECRET, { expiresIn: '7d' });
+            // Set different token expiry for different roles
+            const tokenExpiry = (userRole === 'admin' || userRole === 'share_admin') ? '1h' : '15m';
+            const refreshTokenExpiry = '7d';
+            const refreshTokenMaxAge = 7 * 24 * 60 * 60 * 1000;
+            const tokenMaxAge = (userRole === 'admin' || userRole === 'share_admin') ? 60 * 60 * 1000 : 15 * 60 * 1000;
+
+
+            const token = jwt.sign({ id: user.id, role: userRole }, JWT_SECRET, { expiresIn: tokenExpiry });
+            const refreshToken = jwt.sign({ id: user.id, role: userRole }, REFRESH_SECRET, { expiresIn: refreshTokenExpiry });
 
             try {
                 await db.promise().query("INSERT INTO refresh_tokens (token, user_id) VALUES (?, ?)", [refreshToken, user.id]);
@@ -153,7 +170,7 @@ app.post('/api/login', async (req, res) => {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
                 sameSite: 'strict',
-                maxAge: 15 * 60 * 1000 // 15 minutes
+                maxAge: tokenMaxAge 
             });
             
             // Set Refresh Token in its own httpOnly cookie
@@ -162,7 +179,7 @@ app.post('/api/login', async (req, res) => {
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'strict',
                 path: '/api/refresh-token', // Only send to refresh token endpoint
-                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+                maxAge: refreshTokenMaxAge
             });
 
             delete user.password;
@@ -332,6 +349,12 @@ app.get('/api/my-loans', authenticateToken, userController.getLoans);
 app.post('/api/create-fd', authenticateToken, userController.createFD);
 app.get('/api/my-fds', authenticateToken, userController.getFDs);
 app.post('/api/schedule-transfer', authenticateToken, userController.scheduleTransfer);
+// ASBA Routes
+app.get('/api/asba/offerings', authenticateToken, userController.getOpenOfferings);
+app.get('/api/asba/upcoming-offerings', authenticateToken, userController.getUpcomingOfferings);
+app.get('/api/asba/my-applications', authenticateToken, userController.getMyApplications);
+app.post('/api/asba/apply', authenticateToken, userController.applyForShare);
+
 
 
 app.post('/api/deposit', authenticateToken, async (req, res) => {
@@ -423,3 +446,6 @@ app.post('/api/forgot-password/reset', async (req, res) => {
 });
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
+// Start the background job to update share statuses
+require('./controllers/update_share_status.js');

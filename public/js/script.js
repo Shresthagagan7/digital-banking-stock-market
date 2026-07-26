@@ -8,19 +8,40 @@ function showScreen(screenId) {
     document.getElementById(screenId).classList.remove('hidden');
 
     if (screenId === 'dashboard') {
-       
+        // When showing dashboard, apply theme from localStorage
+        if (localStorage.getItem('user_theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
         showDashboardPanel('main-view');
+    } else {
+        // For any other screen (login, register, etc.), remove dark mode
+        document.body.classList.remove('dark-mode');
     }
 }
+
 async function fetchSharePrice() {
     const symbol = document.getElementById('share-symbol').value.toUpperCase();
     if (!symbol) return alert("Please enter a symbol (e.g., NICA, NABIL)");
-
-    const mockPrice = (Math.random() * (1000 - 100) + 100).toFixed(2);    
     
-    document.getElementById('share-details-card').classList.remove('hidden');
-    document.getElementById('res-symbol').innerText = symbol;
-    document.getElementById('res-price').innerText = mockPrice;
+    try {
+        const res = await fetch(`/api/share-admin/stocks/price/${symbol}`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('share-details-card').classList.remove('hidden');
+            document.getElementById('res-symbol').innerText = data.symbol;
+            document.getElementById('res-price').innerText = parseFloat(data.current_price).toFixed(2);
+        } else {
+            const err = await res.json();
+            alert(err.message);
+            document.getElementById('share-details-card').classList.add('hidden');
+        }
+    } catch (error) {
+        console.error("Error fetching share price:", error);
+        alert("Could not fetch share price. Please try again.");
+        document.getElementById('share-details-card').classList.add('hidden');
+    }
 }
 async function processTrade(action) {
     const symbol = document.getElementById('res-symbol').innerText;
@@ -96,6 +117,149 @@ function sellFromPortfolio(symbol, maxQty) {
     }
 }
 
+function switchAsbaTab(tabId) {
+    // Hide all tab contents
+    document.querySelectorAll('.asba-tab-content').forEach(el => el.classList.add('hidden'));
+    // Deactivate all tab buttons
+    document.querySelectorAll('#my-asba-section .tab-btn').forEach(btn => btn.classList.remove('active-tab'));
+    
+    // Show the target tab content
+    const targetTab = document.getElementById(tabId);
+    if (targetTab) targetTab.classList.remove('hidden');
+    
+    // Activate the clicked tab button
+    const activeBtn = Array.from(document.querySelectorAll('#my-asba-section .tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+    if (activeBtn) activeBtn.classList.add('active-tab');
+}
+
+async function openMyAsba() {
+    showDashboardPanel('my-asba-section');
+    switchAsbaTab('asba-apply-tab'); // Show the first tab by default
+
+    // Fetch and display user's applications for "Application Report" tab
+    const applicationsRes = await fetch('/api/asba/my-applications', { credentials: 'include' });
+    if (applicationsRes.ok) {
+        const applications = await applicationsRes.json();
+        const applicationsBody = document.getElementById('asba-my-applications-body');
+        if (applications.length > 0) {
+            applicationsBody.innerHTML = applications.map(app => `
+                <tr>
+                    <td>${new Date(app.applied_at).toLocaleDateString('en-GB')}</td>
+                    <td>${app.company_name}</td>
+                    <td>${app.applied_units}</td>
+                    <td><span class="status-badge" style="background-color: ${app.status === 'Allotted' ? '#27ae60' : (app.status === 'Not Allotted' ? '#e74c3c' : '#f39c12')};">${app.status}</span></td>
+                </tr>
+            `).join('');
+        } else {
+            applicationsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 15px;">You have not applied for any shares yet.</td></tr>';
+        }
+
+        // Now fetch open and upcoming issues, and use the application data to show "Edit" button
+        const appliedOfferingIds = new Set(applications.map(app => app.offering_id));
+
+        // Fetch and display OPEN offerings for "Apply for Issue" tab
+        const offeringsRes = await fetch('/api/asba/offerings', { credentials: 'include' });
+        if (offeringsRes.ok) {
+            const offerings = await offeringsRes.json();
+            const issuesBody = document.getElementById('asba-open-issues-body');
+            if (offerings.length > 0) {
+                issuesBody.innerHTML = offerings.map(o => {
+                    const hasApplied = appliedOfferingIds.has(o.id);
+                    const buttonHtml = hasApplied
+                        ? `<button onclick="applyForShare(${o.id}, '${o.symbol}', ${o.price_per_unit}, '${o.company_name}')" class="action-btn-blue" style="padding: 5px 10px; width: auto;">Edit</button>`
+                        : `<button onclick="applyForShare(${o.id}, '${o.symbol}', ${o.price_per_unit}, '${o.company_name}')" class="action-btn-green" style="padding: 5px 10px; width: auto;">Apply Now</button>`;
+                    
+                    return `
+                        <tr>
+                            <td>${o.company_name}</td>
+                            <td>${o.symbol}</td>
+                            <td>Rs. ${parseFloat(o.price_per_unit).toFixed(2)}</td>
+                            <td>${new Date(o.close_date).toLocaleDateString('en-GB')}</td>
+                            <td>${buttonHtml}</td>
+                        </tr>`;
+                }).join('');
+            } else {
+                issuesBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 15px;">No issues are open for application right now.</td></tr>';
+            }
+        }
+
+        // Fetch and display UPCOMING offerings for "Current Issue" tab
+        const upcomingRes = await fetch('/api/asba/upcoming-offerings', { credentials: 'include' });
+        if (upcomingRes.ok) {
+            const upcoming = await upcomingRes.json();
+            const upcomingBody = document.getElementById('asba-upcoming-issues-body');
+            upcomingBody.innerHTML = upcoming.length > 0 ? upcoming.map(o => `
+                <tr><td>${o.company_name}</td><td>${o.symbol}</td><td>${new Date(o.open_date).toLocaleDateString('en-GB')}</td><td>${new Date(o.close_date).toLocaleDateString('en-GB')}</td></tr>
+            `).join('') : '<tr><td colspan="4" style="text-align:center; padding: 15px;">There are no upcoming issues.</td></tr>';
+        }
+    }
+}
+
+function calculateApplyAmount() {
+    const units = parseInt(document.getElementById('apply-units').value) || 0;
+    const price = parseFloat(document.getElementById('apply-price').textContent) || 0;
+    const totalAmount = units * price;
+    document.getElementById('apply-total-amount').value = `Rs. ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+async function applyForShare(offeringId, symbol, price, companyName) {
+    // Show the application panel instead of prompts
+    showDashboardPanel('share-application-panel');
+
+    // Populate the form with share details
+    document.getElementById('apply-company-name').textContent = companyName;
+    document.getElementById('apply-symbol').textContent = symbol;
+    document.getElementById('apply-price').textContent = parseFloat(price).toFixed(2);
+
+    // Clear previous inputs
+    document.getElementById('apply-units').value = '';
+    document.getElementById('apply-pin').value = '';
+    calculateApplyAmount(); // Reset total amount display
+
+    // Store the offeringId in the confirm button so we can retrieve it later
+    document.getElementById('confirm-apply-btn').dataset.offeringId = offeringId;
+}
+
+async function confirmShareApplication() {
+    const offeringId = document.getElementById('confirm-apply-btn').dataset.offeringId;
+    const appliedUnits = parseInt(document.getElementById('apply-units').value);
+    const pin = document.getElementById('apply-pin').value;
+    const price = parseFloat(document.getElementById('apply-price').textContent);
+
+    if (isNaN(appliedUnits) || appliedUnits < 10) {
+        return alert("Invalid input. Please apply for at least 10 units.");
+    }
+
+    const totalAmount = appliedUnits * price;
+    if (totalAmount > currentUser.balance) {
+        return alert(`Insufficient balance. You need Rs. ${totalAmount.toLocaleString()} but you only have Rs. ${parseFloat(currentUser.balance).toLocaleString()}.`);
+    }
+
+    if (pin === null || pin.length !== 4) {
+        return alert("Invalid Transaction PIN.");
+    }
+
+    const res = await fetch('/api/asba/apply', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            offeringId: parseInt(offeringId),
+            units: appliedUnits,
+            pin: pin
+        })
+    });
+
+    const result = await res.json();
+    alert(result.message); // Show the final result in a popup
+
+    if (res.ok) {
+        await checkLoginStatus(); // Re-fetch user data to update balance
+        openMyAsba(); // Go back to the ASBA section and reload it
+    }
+}
+
+
 async function checkLoginStatus() {
     try {
         // Attempt to fetch the session from the server
@@ -109,6 +273,10 @@ async function checkLoginStatus() {
 
                 if (currentUser.role === 'admin') {
                     window.location.href = '/admin-panel';
+                    return;
+                }
+                if (currentUser.role === 'share_admin') {
+                    window.location.href = '/share-admin-panel';
                     return;
                 }
 
@@ -150,6 +318,9 @@ function showDashboardPanel(panelId) {
     // Special load functions for specific panels
     if (panelId === 'share-market-section') {
         loadPortfolio();
+    }
+    if (panelId === 'my-asba-section') {
+        openMyAsba();
     }
 }
 function openCashDeposit() {
@@ -448,6 +619,8 @@ async function login() {
         if(res.ok) {
             if (result.user.role === 'admin') {
                 window.location.href = '/admin-panel';
+            } else if (result.user.role === 'share_admin') {
+                window.location.href = '/share-admin-panel';
             } else {
                 currentUser = result.user;
                 if (!currentUser) throw new Error("User data missing from response");
@@ -487,8 +660,8 @@ async function viewMyAccounts() {
 
     const fullName = `${currentUser.first_name} ${currentUser.last_name}`;
     const balance = parseFloat(currentUser.balance) || 0;
-    const holdAmount = 0; 
-    const ledgerBalance = balance + holdAmount; 
+    const holdAmount = parseFloat(currentUser.hold_balance) || 0;
+    const ledgerBalance = balance + holdAmount;
     const tradingBalance = 0; 
 
     // Top Summary
@@ -947,5 +1120,24 @@ function switchAccountTab(tabId) {
 
 document.addEventListener('DOMContentLoaded', () => {
     // Check login status as soon as the page loads
+
+    const darkModeToggle = document.getElementById('dark-mode-toggle-user');
+    const currentTheme = localStorage.getItem('user_theme');
+
+    if (currentTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        darkModeToggle.checked = true;
+    }
+
+    darkModeToggle.addEventListener('change', function() {
+        if (this.checked) {
+            document.body.classList.add('dark-mode');
+            localStorage.setItem('user_theme', 'dark');
+        } else {
+            document.body.classList.remove('dark-mode');
+            localStorage.setItem('user_theme', 'light');
+        }
+    });
+
     checkLoginStatus();
 });
