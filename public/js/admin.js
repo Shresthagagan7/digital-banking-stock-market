@@ -326,6 +326,11 @@ function showShareAdminPanel(panelId) {
     if (panelToShow) {
         panelToShow.classList.remove('hidden');
     }
+
+    // If the allotment panel is being shown, refresh the offerings list.
+    if (panelId === 'allotment-panel') {
+        fetchOfferingsForAllotment();
+    }
 }
 
 async function checkAdminSessionAndFetchShareData() {
@@ -337,8 +342,6 @@ async function checkAdminSessionAndFetchShareData() {
                 currentAdmin = user;
                 document.getElementById('admin-name').innerText = `${user.first_name} ${user.last_name}`;
                 showShareAdminPanel('share-admin-main-view'); // Show main view on load
-                // TODO: Fetch data for both panels
-                // fetchAllShareData(); 
             } else {
                 logoutAdmin(); // Not a share admin or session expired
             }
@@ -403,5 +406,92 @@ async function addStock() {
     } else {
         const err = await res.json();
         alert("Failed to add stock: " + err.message);
+    }
+}
+
+async function fetchOfferingsForAllotment() {
+    const res = await fetch('/api/share-admin/offerings/allotment-ready', { credentials: 'include' });
+    if (!res.ok) {
+        console.error("Failed to fetch offerings for allotment");
+        return;
+    }
+    const offerings = await res.json();
+    const tableBody = document.getElementById('offerings-for-allotment-body');
+    if (offerings.length > 0) {
+        tableBody.innerHTML = offerings.map(o => `
+            <tr>
+                <td>${escapeHTML(o.company_name)}</td>
+                <td>${escapeHTML(o.symbol)}</td>
+                <td>${escapeHTML(o.status)}</td>
+                <td><button class="action-btn-blue" onclick="viewApplicantsForAllotment(${o.id}, '${escapeHTML(o.company_name)}', ${o.total_units})">View Applicants & Allot</button></td>
+            </tr>
+        `).join('');
+    } else {
+        tableBody.innerHTML = '<tr><td colspan="4">No offerings are ready for allotment.</td></tr>';
+    }
+}
+
+async function viewApplicantsForAllotment(offeringId, companyName, totalUnits) {
+    showShareAdminPanel('allotment-details-panel');
+    document.getElementById('allotment-details-header').innerText = `Allotment for ${companyName}`;
+    document.getElementById('allotment-info').innerHTML = `<strong>Total Units Offered:</strong> ${totalUnits.toLocaleString()}`;
+
+    const res = await fetch(`/api/share-admin/offerings/${offeringId}/applicants`, { credentials: 'include' });
+    if (!res.ok) {
+        alert("Failed to fetch applicants.");
+        return;
+    }
+    const applicants = await res.json();
+    const tableBody = document.getElementById('applicants-for-allotment-body');
+    if (applicants.length > 0) {
+        tableBody.innerHTML = applicants.map(a => `
+            <tr>
+                <td><input type="checkbox" class="allot-checkbox" data-user-id="${a.user_id}"></td>
+                <td>${escapeHTML(a.first_name)} ${escapeHTML(a.last_name)}</td>
+                <td>${escapeHTML(a.account_number)}</td>
+                <td>${a.applied_units}</td>
+            </tr>
+        `).join('');
+    } else {
+        tableBody.innerHTML = '<tr><td colspan="4">No applicants for this offering.</td></tr>';
+    }
+
+    // Set up the process button
+    const processBtn = document.getElementById('process-allotment-btn');
+    processBtn.onclick = () => processAllotment(offeringId);
+}
+
+function toggleAllCheckboxes(masterCheckbox) {
+    const checkboxes = document.querySelectorAll('.allot-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = masterCheckbox.checked;
+    });
+}
+
+async function processAllotment(offeringId) {
+    const checkboxes = document.querySelectorAll('.allot-checkbox:checked');
+    const allottedUserIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.userId));
+
+    if (allottedUserIds.length === 0) {
+        return alert("Please select at least one applicant to allot shares to.");
+    }
+
+    if (!confirm(`Are you sure you want to process allotment for ${allottedUserIds.length} selected applicants? This action cannot be undone.`)) {
+        return;
+    }
+
+    const res = await fetch('/api/share-admin/process-allotment', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offeringId, allottedUserIds })
+    });
+
+    const result = await res.json();
+    alert(result.message);
+
+    if (res.ok) {
+        showShareAdminPanel('allotment-panel');
+        fetchOfferingsForAllotment(); // Refresh the list of offerings
     }
 }

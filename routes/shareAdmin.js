@@ -23,4 +23,11 @@ router.put('/stocks/:id', shareAdminController.updateStockPrice);
 // Route to add a new share offering (IPO/FPO)
 router.post('/offerings', shareAdminController.addShareOffering);
 
+// Routes for share allotment process
+router.get('/offerings/allotment-ready', shareAdminController.getOfferingsForAllotment);
+router.get('/offerings/:id/applicants', shareAdminController.getApplicantsForOffering);
+router.post('/process-allotment', shareAdminController.processAllotment);
+
+
+
 module.exports = router;

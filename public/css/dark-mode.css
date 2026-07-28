@@ -82,12 +82,17 @@ body.dark-mode {
 .dark-mode .my-section,
 .dark-mode .option-card,
 .dark-mode .admin-table-container,
-.dark-mode .details-box,
-.dark-mode .admin-panel {
+.dark-mode .details-box {
     /* Use a slightly lighter dark shade for cards */
     background-color: #1e1e1e; 
     border-color: #3a3a3a;
     box-shadow: none;
+}
+
+.dark-mode .option-card:hover,
+.dark-mode button:hover,
+.dark-mode .action-btn:hover {
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
 }
 
 .dark-mode h2, .dark-mode h3, .dark-mode h4, .dark-mode .section-title, .dark-mode .bank-logo {
@@ -104,6 +109,10 @@ body.dark-mode {
     background-color: #333;
     color: #f1f1f1;
     border: 1px solid #555;
+}
+
+.dark-mode .admin-table tbody tr:hover {
+    background-color: #313131;
 }
 
 .dark-mode .admin-table tr:nth-child(even) {

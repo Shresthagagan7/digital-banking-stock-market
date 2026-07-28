@@ -543,6 +543,26 @@ async function resetPassword() {
     alert(result.message);
     if (res.ok) showScreen('login-section');
 }
+
+function toggleLoginPasswordVisibility() {
+    console.log("toggleLoginPasswordVisibility function called!"); // Debugging message
+    const passwordInput = document.getElementById('login-pass');
+    const toggleIcon = document.querySelector('#login-section .password-toggle-icon');
+
+    if (!passwordInput || !toggleIcon) {
+        console.error("Password input field or toggle icon not found in login section. Check HTML IDs/classes.");
+        return;
+    }
+
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleIcon.textContent = '🙈'; // Hide icon (monkey)
+    } else {
+        passwordInput.type = 'password';
+        toggleIcon.textContent = '👁️'; // Show icon (eye)
+    }
+}
+
 async function register() {
     const btn = document.getElementById('reg-btn');
     

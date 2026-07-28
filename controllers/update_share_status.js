@@ -1,42 +1,37 @@
 const db = require('../db');
 
-/**
- * This function checks the share_offerings table and updates the status
- * of each offering based on its open_date and close_date.
- * 
- * - If status is 'upcoming' and today's date is on or after open_date, it becomes 'open'.
- * - If status is 'open' and today's date is after close_date, it becomes 'closed'.
- */
 async function updateShareStatuses() {
-    console.log(`[${new Date().toISOString()}] Running share status update job...`);
     const connection = await db.promise().getConnection();
     try {
-        // Update 'upcoming' to 'open'
-        const [upcomingResults] = await connection.query(
-            "UPDATE share_offerings SET status = 'open' WHERE status = 'upcoming' AND CURDATE() >= open_date"
+        const now = new Date().toISOString().slice(0, 10); // Get YYYY-MM-DD format
+
+        // 1. Update 'upcoming' to 'open'
+        // Find offerings where open_date is today or in the past, and status is 'upcoming'
+        const [toOpen] = await connection.query(
+            "UPDATE share_offerings SET status = 'open' WHERE open_date <= ? AND status = 'upcoming'",
+            [now]
         );
-        if (upcomingResults.affectedRows > 0) {
-            console.log(`Updated ${upcomingResults.affectedRows} offerings from 'upcoming' to 'open'.`);
+        if (toOpen.affectedRows > 0) {
+            console.log(`[Share Status Job] Opened ${toOpen.affectedRows} share offering(s).`);
         }
 
-        // Update 'open' to 'closed'
-        const [openResults] = await connection.query(
-            "UPDATE share_offerings SET status = 'closed' WHERE status = 'open' AND CURDATE() > close_date"
+        // 2. Update 'open' to 'closed'
+        // Find offerings where close_date is in the past, and status is 'open'
+        const [toClose] = await connection.query(
+            "UPDATE share_offerings SET status = 'closed' WHERE close_date < ? AND status = 'open'",
+            [now]
         );
-        if (openResults.affectedRows > 0) {
-            console.log(`Updated ${openResults.affectedRows} offerings from 'open' to 'closed'.`);
+        if (toClose.affectedRows > 0) {
+            console.log(`[Share Status Job] Closed ${toClose.affectedRows} share offering(s).`);
         }
-
-    } catch (error) {
-        console.error("Error updating share statuses:", error);
+    } catch (err) {
+        console.error("[Share Status Job] Error updating share statuses:", err);
     } finally {
-        if (connection) connection.release();
-        console.log("Share status update job finished.");
+        connection.release();
     }
 }
 
-// Run the job immediately and then every 60 seconds
-updateShareStatuses();
-setInterval(updateShareStatuses, 60 * 1000); // 60 seconds
+// Run the job every 60 seconds
+setInterval(updateShareStatuses, 60 * 1000);
 
-console.log("Share status updater script started. Will run every minute.");
+console.log("[Share Status Job] Background job for updating share statuses has started.");

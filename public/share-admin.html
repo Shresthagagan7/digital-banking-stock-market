@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>mero-Bank | Share Admin</title>
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/admin.css">
     <link rel="stylesheet" href="css/dark-mode.css">
 </head>
 <body class="dashboard-wrapper">
@@ -90,11 +89,31 @@
                         <thead>
                             <tr><th>Company</th><th>Symbol</th><th>Status</th><th>Actions</th></tr>
                         </thead>
-                        <tbody id="offerings-for-allotment-body">
-                            <!-- Data will be loaded here -->
-                            <tr><td>(Sample) Himalayan Reinsurance</td><td>HRL</td><td>Closed</td><td><button class="action-btn-blue">View Applicants & Allot</button></td></tr>
+                        <tbody id="offerings-for-allotment-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Panel for Allotment Details -->
+            <div id="allotment-details-panel" class="admin-panel hidden">
+                <button class="back-btn" onclick="showShareAdminPanel('allotment-panel')">← Back to Offerings</button>
+                <div class="my-section admin-table-container">
+                    <h3 id="allotment-details-header">Allotment for [Company]</h3>
+                    <div id="allotment-info" style="margin-bottom: 15px; background: #f1f1f1; padding: 10px; border-radius: 5px;"></div>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" onchange="toggleAllCheckboxes(this)"> Allot All</th>
+                                <th>Applicant Name</th>
+                                <th>Account No.</th>
+                                <th>Applied Units</th>
+                            </tr>
+                        </thead>
+                        <tbody id="applicants-for-allotment-body">
+                            <!-- Applicant data will be loaded here by JavaScript -->
                         </tbody>
                     </table>
+                    <button id="process-allotment-btn" class="action-btn-green" style="margin-top: 20px;">Process Allotment</button>
                 </div>
             </div>
 

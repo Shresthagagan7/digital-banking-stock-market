@@ -12,8 +12,11 @@
         <!-- Login Form -->
         <div id="login-section" class="container">
             <h2>Login</h2>
-            <input type="tel" id="login-phone" placeho lder="Phone Number" required>
-            <input type="password" id="login-pass" placeholder="Password" required minlength="6">
+            <input type="tel" id="login-phone" placeholder="Phone Number" required>
+            <div class="password-input-container">
+                <input type="password" id="login-pass" placeholder="Password" required minlength="6">
+                <span class="password-toggle-icon" onclick="toggleLoginPasswordVisibility()">👁️</span>
+            </div>
             <button id="login-btn" onclick="login()">Login</button>
             <p><a href="#" onclick="showScreen('forgot-pass-section')">Forgot Password?</a></p>
             <p>Don't have an account? <a href="#" onclick="showScreen('register-section')">Create New Account</a></p>
@@ -150,6 +153,7 @@
                         <li onclick="alert('Statements generation coming soon!')">📄 Statements</li>
 
                         <li class="menu-header">SHARE MARKET</li>
+                        <li onclick="openMyAsba()">🏦 My ASBA</li>
                         <li onclick="showDashboardPanel('share-market-section')">📁 Portfolio</li>
                         <li onclick="showDashboardPanel('share-market-section')">🛒 Buy Shares</li>
                         <li onclick="showDashboardPanel('share-market-section')">💰 Sell Shares</li>

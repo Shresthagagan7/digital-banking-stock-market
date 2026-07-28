@@ -100,3 +100,110 @@ exports.addShareOffering = async (req, res) => {
         res.status(500).json({ message: "Server error while adding the share offering." });
     }
 };
+
+exports.getOfferingsForAllotment = async (req, res) => {
+    try {
+        const [offerings] = await db.promise().query(
+            "SELECT id, company_name, symbol, status, total_units FROM share_offerings WHERE status = 'closed' ORDER BY close_date DESC"
+        );
+        res.json(offerings);
+    } catch (err) {
+        console.error("Error fetching offerings for allotment:", err);
+        res.status(500).json({ message: "Server error fetching offerings." });
+    }
+};
+
+exports.getApplicantsForOffering = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const sql = `
+            SELECT u.id as user_id, u.first_name, u.last_name, u.account_number, sa.applied_units
+            FROM share_applications sa
+            JOIN users u ON sa.user_id = u.id
+            WHERE sa.offering_id = ?
+            ORDER BY sa.applied_at ASC
+        `;
+        const [applicants] = await db.promise().query(sql, [id]);
+        res.json(applicants);
+    } catch (err) {
+        console.error("Error fetching applicants for offering:", err);
+        res.status(500).json({ message: "Server error fetching applicants." });
+    }
+};
+
+exports.processAllotment = async (req, res) => {
+    const { offeringId, allottedUserIds } = req.body;
+
+    if (!offeringId || !Array.isArray(allottedUserIds)) {
+        return res.status(400).json({ message: "Invalid request data." });
+    }
+
+    const connection = await db.promise().getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Get offering details
+        const [[offering]] = await connection.query("SELECT * FROM share_offerings WHERE id = ?", [offeringId]);
+        if (!offering || offering.status !== 'closed') {
+            throw new Error("This offering is not ready for allotment or does not exist.");
+        }
+
+        // 2. Get all applicants for this offering
+        const [allApplicants] = await connection.query("SELECT * FROM share_applications WHERE offering_id = ?", [offeringId]);
+
+        for (const applicant of allApplicants) {
+            const userId = applicant.user_id;
+            const isAllotted = allottedUserIds.includes(userId);
+
+            if (isAllotted) {
+                // User is allotted
+                // a. Update application status
+                await connection.query("UPDATE share_applications SET status = 'Allotted' WHERE id = ?", [applicant.id]);
+
+                // b. Release hold amount and deduct it from actual balance (already done when applying)
+                await connection.query("UPDATE users SET hold_balance = hold_balance - ? WHERE id = ?", [applicant.applied_amount, userId]);
+
+                // c. Add shares to user's portfolio
+                const [existing] = await connection.query("SELECT * FROM portfolio WHERE user_id = ? AND symbol = ?", [userId, offering.symbol]);
+                if (existing.length > 0) {
+                    const oldQty = existing[0].quantity;
+                    const oldAvg = existing[0].average_price;
+                    const newQty = oldQty + applicant.applied_units;
+                    const newAvg = ((oldQty * oldAvg) + applicant.applied_amount) / newQty;
+                    await connection.query("UPDATE portfolio SET quantity = ?, average_price = ? WHERE id = ?", [newQty, newAvg, existing[0].id]);
+                } else {
+                    await connection.query("INSERT INTO portfolio (user_id, symbol, quantity, average_price) VALUES (?, ?, ?, ?)", [userId, offering.symbol, applicant.applied_units, offering.price_per_unit]);
+                }
+                
+                // d. Add transaction record
+                await connection.query("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'debit', ?, ?)",
+                    [userId, applicant.applied_amount, `Allotment: ${applicant.applied_units} units of ${offering.symbol}`]);
+
+            } else {
+                // User is not allotted
+                // a. Update application status
+                await connection.query("UPDATE share_applications SET status = 'Not Allotted' WHERE id = ?", [applicant.id]);
+
+                // b. Refund the blocked amount
+                await connection.query("UPDATE users SET balance = balance + ?, hold_balance = hold_balance - ? WHERE id = ?", [applicant.applied_amount, applicant.applied_amount, userId]);
+
+                // c. Send notification
+                await connection.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)",
+                    [userId, `Your application for ${offering.company_name} was not allotted. Rs. ${applicant.applied_amount.toLocaleString()} has been refunded to your account.`]);
+            }
+        }
+
+        // 3. Update the offering status to 'allotted'
+        await connection.query("UPDATE share_offerings SET status = 'allotted' WHERE id = ?", [offeringId]);
+
+        await connection.commit();
+        res.json({ message: `Allotment for ${offering.company_name} processed successfully. ${allottedUserIds.length} users were allotted shares.` });
+
+    } catch (err) {
+        await connection.rollback();
+        console.error("Error processing allotment:", err);
+        res.status(500).json({ message: "Failed to process allotment: " + err.message });
+    } finally {
+        connection.release();
+    }
+};
