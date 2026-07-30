@@ -99,6 +99,33 @@ async function loadPortfolio() {
     }
 }
 function sellFromPortfolio(symbol, maxQty) {
+    const sellQtyStr = prompt(`How many units of ${symbol} do you want to sell? (Max: ${maxQty})`);
+    if (sellQtyStr === null) return; // User cancelled
+
+    const sellQty = parseInt(sellQtyStr);
+    if (isNaN(sellQty) || sellQty <= 0 || sellQty > maxQty) return alert("Invalid quantity");
+
+    // Fetch the current market price first
+    fetch(`/api/share-admin/stocks/price/${symbol}`, { credentials: 'include' })
+    .then(res => {
+        if (!res.ok) throw new Error('Could not fetch current price.');
+        return res.json();
+    })
+    .then(data => {
+        const currentMarketPrice = parseFloat(data.current_price).toFixed(2);
+        if (confirm(`The current market price for ${symbol} is Rs. ${currentMarketPrice}.\n\nProceed to sell ${sellQty} units?`)) {
+            document.getElementById('res-symbol').innerText = symbol;
+            document.getElementById('res-price').innerText = currentMarketPrice;
+            document.getElementById('trade-qty').value = sellQty;
+            processTrade('sell');
+        }
+    })
+    .catch(err => {
+        alert(`Error: ${err.message} Could not complete the sell order.`);
+    });
+}
+
+function oldSellFromPortfolio(symbol, maxQty) {
     const qty = prompt(`How many units of ${symbol} do you want to sell? (Max: ${maxQty})`);
     if (qty === null) return;
     
@@ -107,7 +134,7 @@ function sellFromPortfolio(symbol, maxQty) {
         return alert("Invalid quantity");
     }
 
-       const currentMarketPrice = (Math.random() * (1000 - 100) + 100).toFixed(2);
+    const currentMarketPrice = (Math.random() * (1000 - 100) + 100).toFixed(2);
     
     if (confirm(`Selling ${sellQty} units of ${symbol} at Rs. ${currentMarketPrice}. Proceed?`)) {
         document.getElementById('res-symbol').innerText = symbol;
@@ -428,7 +455,7 @@ function toggleBalance() {
     if (isBalanceHidden) {
         balElem.innerText = "******";
         accElem.innerText = "**********";
-        btn.innerText = "🙈";
+        btn.innerText = "🚫";
     } else {
        balElem.innerText = `Rs. ${parseFloat(currentUser.balance).toLocaleString()}`;
         accElem.innerText = currentUser.account_number;
@@ -440,13 +467,9 @@ function toggleNotifications() {
     dropdown.classList.toggle('hidden');
     
     if (!dropdown.classList.contains('hidden') && currentUser) {
-        fetch(`/api/notifications/mark-read`, { 
+        fetch(`/api/notifications/mark-read`, {
             method: 'POST', 
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ userId: currentUser.id })
+            credentials: 'include'
         });
         document.getElementById('user-noti-count').classList.add('hidden');
     }
@@ -556,10 +579,10 @@ function toggleLoginPasswordVisibility() {
 
     if (passwordInput.type === 'password') {
         passwordInput.type = 'text';
-        toggleIcon.textContent = '🙈'; // Hide icon (monkey)
+        toggleIcon.textContent = '🚫'; 
     } else {
         passwordInput.type = 'password';
-        toggleIcon.textContent = '👁️'; // Show icon (eye)
+        toggleIcon.textContent = '👁️'; 
     }
 }
 
@@ -761,26 +784,17 @@ async function viewMyAccounts() {
     document.getElementById('info-date').innerText = currentUser.dob || '2025-01-01';
 }
 
-async function viewTransactionHistory() {
-    if (!currentUser) return;
-    showDashboardPanel('transaction-history-section');
-
-    const res = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
-    const transactions = await res.json();
-    const tableBody = document.getElementById('history-transaction-rows');
-    tableBody.innerHTML = ''; 
-
-    const balance = parseFloat(currentUser.balance) || 0;
-    let runningBalance = balance;
+async function renderTransactionHistory(tableBodyId, transactions, currentBalance) {
+    const tableBody = document.getElementById(tableBodyId);
+    tableBody.innerHTML = '';
+    let runningBalance = parseFloat(currentBalance) || 0;
 
     if (transactions.length > 0) {
         transactions.forEach(t => {
             const amt = parseFloat(t.amount);
             const isCredit = t.type === 'credit' || t.type === 'interest' || t.description.toLowerCase().includes('deposit');
-            
             const amountClass = isCredit ? 'transaction-credit' : 'transaction-debit';
             const sign = isCredit ? '+' : '-';
-            
             const balanceAfterTxn = runningBalance;
 
             const row = document.createElement('tr');
@@ -793,6 +807,7 @@ async function viewTransactionHistory() {
             `;
             tableBody.appendChild(row);
 
+            // Update running balance for the previous (older) transaction
             if (isCredit) {
                 runningBalance -= amt;
             } else {
@@ -810,84 +825,7 @@ async function viewTransactionHistory() {
 
     const res = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
     const transactions = await res.json();
-    const tableBody = document.getElementById('history-transaction-rows');
-    tableBody.innerHTML = ''; 
-
-    const balance = parseFloat(currentUser.balance) || 0;
-    let runningBalance = balance;
-
-    if (transactions.length > 0) {
-        transactions.forEach(t => {
-            const amt = parseFloat(t.amount);
-            const isCredit = t.type === 'credit' || t.type === 'interest' || t.description.toLowerCase().includes('deposit');
-            
-            const amountClass = isCredit ? 'transaction-credit' : 'transaction-debit';
-            const sign = isCredit ? '+' : '-';
-            
-            const balanceAfterTxn = runningBalance;
-
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td style="padding: 12px; border: 1px solid #ddd;">${new Date(t.transaction_date).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})}</td>
-                <td style="padding: 12px; border: 1px solid #ddd;">${t.type.toUpperCase()}</td>
-                <td style="padding: 12px; border: 1px solid #ddd;">${t.description}</td>
-                <td style="padding: 12px; border: 1px solid #ddd;" class="${amountClass}">${sign}Rs. ${amt.toLocaleString()}</td>
-                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">Rs. ${balanceAfterTxn.toLocaleString()}</td>
-            `;
-            tableBody.appendChild(row);
-
-            if (isCredit) {
-                runningBalance -= amt;
-            } else {
-                runningBalance += amt;
-            }
-        });
-    } else {
-        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No transactions found.</td></tr>';
-    }
-}
-
-async function viewTransactionHistory() {
-    if (!currentUser) return;
-    showDashboardPanel('transaction-history-section');
-
-    const res = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
-    const transactions = await res.json();
-    const tableBody = document.getElementById('history-transaction-rows');
-    tableBody.innerHTML = ''; 
-
-    const balance = parseFloat(currentUser.balance) || 0;
-    let runningBalance = balance;
-
-    if (transactions.length > 0) {
-        transactions.forEach(t => {
-            const amt = parseFloat(t.amount);
-            const isCredit = t.type === 'credit' || t.type === 'interest' || t.description.toLowerCase().includes('deposit');
-            
-            const amountClass = isCredit ? 'transaction-credit' : 'transaction-debit';
-            const sign = isCredit ? '+' : '-';
-            
-            const balanceAfterTxn = runningBalance;
-
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td style="padding: 12px; border: 1px solid #ddd;">${new Date(t.transaction_date).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'})}</td>
-                <td style="padding: 12px; border: 1px solid #ddd;">${t.type.toUpperCase()}</td>
-                <td style="padding: 12px; border: 1px solid #ddd;">${t.description}</td>
-                <td style="padding: 12px; border: 1px solid #ddd;" class="${amountClass}">${sign}Rs. ${amt.toLocaleString()}</td>
-                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">Rs. ${balanceAfterTxn.toLocaleString()}</td>
-            `;
-            tableBody.appendChild(row);
-
-            if (isCredit) {
-                runningBalance -= amt;
-            } else {
-                runningBalance += amt;
-            }
-        });
-    } else {
-        tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No transactions found.</td></tr>';
-    }
+    renderTransactionHistory('history-transaction-rows', transactions, currentUser.balance);
 }
 
 function openSendMoney() {

@@ -542,3 +542,12 @@ a:hover { text-decoration: underline; }
     display: flex;
     flex-direction: column;
 }
+
+.allotted-row {
+    background-color: #e8f5e9 !important; /* Light green */
+}
+
+.rejected-row {
+    background-color: #fdecea !important; /* Light red */
+    color: #999;
+}

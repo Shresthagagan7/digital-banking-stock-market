@@ -331,6 +331,7 @@ function showShareAdminPanel(panelId) {
     if (panelId === 'allotment-panel') {
         fetchOfferingsForAllotment();
     }
+    if (panelId === 'update-price-panel') { fetchStocksForUpdate(); }
 }
 
 async function checkAdminSessionAndFetchShareData() {
@@ -377,7 +378,7 @@ async function addShareOffering() {
     if (res.ok) {
         alert("New share offering added successfully!");
         document.getElementById('add-offering-form').reset(); // This won't work on divs, clear manually
-        // TODO: Refresh the list of offerings in the table
+        showShareAdminPanel('share-admin-main-view');
     } else {
         const err = await res.json();
         alert("Failed to add offering: " + err.message);
@@ -402,7 +403,8 @@ async function addStock() {
 
     if (res.ok) {
         alert(`Stock ${symbol} has been listed successfully!`);
-        // TODO: Refresh the stock list table
+        document.getElementById('stock-name').value = ''; document.getElementById('stock-symbol').value = ''; document.getElementById('stock-price').value = '';
+        fetchStocksForUpdate(); // Refresh the list in the update panel
     } else {
         const err = await res.json();
         alert("Failed to add stock: " + err.message);
@@ -434,7 +436,11 @@ async function fetchOfferingsForAllotment() {
 async function viewApplicantsForAllotment(offeringId, companyName, totalUnits) {
     showShareAdminPanel('allotment-details-panel');
     document.getElementById('allotment-details-header').innerText = `Allotment for ${companyName}`;
-    document.getElementById('allotment-info').innerHTML = `<strong>Total Units Offered:</strong> ${totalUnits.toLocaleString()}`;
+    document.getElementById('allotment-total-units').innerHTML = `<strong>Total Units Offered:</strong> ${totalUnits.toLocaleString()}`;
+
+    // Reset previous state
+    document.getElementById('applicants-for-allotment-body').innerHTML = '<tr><td colspan="5">Loading applicants...</td></tr>';
+    document.getElementById('units-to-allot-input').value = 10;
 
     const res = await fetch(`/api/share-admin/offerings/${offeringId}/applicants`, { credentials: 'include' });
     if (!res.ok) {
@@ -443,48 +449,81 @@ async function viewApplicantsForAllotment(offeringId, companyName, totalUnits) {
     }
     const applicants = await res.json();
     const tableBody = document.getElementById('applicants-for-allotment-body');
+    
+    const totalAppliedUnits = applicants.reduce((sum, a) => sum + a.applied_units, 0);
+    document.getElementById('allotment-total-applicants').innerHTML = `<strong>Total Applicants:</strong> ${applicants.length}`;
+    document.getElementById('allotment-total-applied-units').innerHTML = `<strong>Total Applied Units:</strong> ${totalAppliedUnits.toLocaleString()}`;
+
     if (applicants.length > 0) {
-        tableBody.innerHTML = applicants.map(a => `
-            <tr>
-                <td><input type="checkbox" class="allot-checkbox" data-user-id="${a.user_id}"></td>
+        tableBody.innerHTML = applicants.map((a, index) => `
+            <tr id="applicant-row-${a.id}" data-status="pending">
+                <td>${index + 1}</td>
                 <td>${escapeHTML(a.first_name)} ${escapeHTML(a.last_name)}</td>
-                <td>${escapeHTML(a.account_number)}</td>
                 <td>${a.applied_units}</td>
+                <td><input type="number" id="allot-units-${a.id}" class="allot-units-input" value="10" min="0" style="display: none;"></td>
+                <td>
+                    <button class="action-btn-green" onclick="setApplicantStatus(${a.id}, 'allot')">Allot</button>
+                    <button class="action-btn-red" onclick="setApplicantStatus(${a.id}, 'reject')">Reject</button>
+                    <button class="action-btn-blue" onclick="setApplicantStatus(${a.id}, 'pending')" style="display:none;">Reset</button>
+                </td>
             </tr>
         `).join('');
     } else {
-        tableBody.innerHTML = '<tr><td colspan="4">No applicants for this offering.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="5">No applicants for this offering.</td></tr>';
     }
 
-    // Set up the process button
     const processBtn = document.getElementById('process-allotment-btn');
     processBtn.onclick = () => processAllotment(offeringId);
 }
 
-function toggleAllCheckboxes(masterCheckbox) {
-    const checkboxes = document.querySelectorAll('.allot-checkbox');
-    checkboxes.forEach(cb => {
-        cb.checked = masterCheckbox.checked;
-    });
+function setApplicantStatus(applicantId, status) {
+    const row = document.getElementById(`applicant-row-${applicantId}`);
+    const unitsInput = document.getElementById(`allot-units-${applicantId}`);
+    const [allotBtn, rejectBtn, resetBtn] = row.querySelectorAll('button');
+
+    // Reset classes and styles
+    row.classList.remove('allotted-row', 'rejected-row');
+    row.style.textDecoration = 'none';
+    unitsInput.style.display = 'none';
+    allotBtn.style.display = 'inline-block';
+    rejectBtn.style.display = 'inline-block';
+    resetBtn.style.display = 'none';
+
+    if (status === 'allot') {
+        row.classList.add('allotted-row');
+        unitsInput.style.display = 'inline-block';
+        unitsInput.value = document.getElementById('units-to-allot-input').value || 10;
+        allotBtn.style.display = 'none';
+        rejectBtn.style.display = 'none';
+        resetBtn.style.display = 'inline-block';
+    } else if (status === 'reject') {
+        row.classList.add('rejected-row');
+        row.style.textDecoration = 'line-through';
+        allotBtn.style.display = 'none';
+        rejectBtn.style.display = 'none';
+        resetBtn.style.display = 'inline-block';
+    }
+    row.dataset.status = status;
 }
 
 async function processAllotment(offeringId) {
-    const checkboxes = document.querySelectorAll('.allot-checkbox:checked');
-    const allottedUserIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.userId));
+    const allotments = Array.from(document.querySelectorAll('#applicants-for-allotment-body tr'))
+    .filter(row => row.dataset.status === 'allot')
+    .map(row => {
+        const applicantId = parseInt(row.id.replace('applicant-row-', ''));
+        const allottedUnits = parseInt(document.getElementById(`allot-units-${applicantId}`).value);
+        return { applicantId, allottedUnits };
+    });
 
-    if (allottedUserIds.length === 0) {
-        return alert("Please select at least one applicant to allot shares to.");
-    }
+    const rejectedCount = document.querySelectorAll('#applicants-for-allotment-body tr[data-status="reject"]').length;
 
-    if (!confirm(`Are you sure you want to process allotment for ${allottedUserIds.length} selected applicants? This action cannot be undone.`)) {
-        return;
-    }
+    if (!confirm(`You are about to allot shares to ${allotments.length} applicant(s) and reject ${rejectedCount} applicant(s).\nThis action cannot be undone. Proceed?`)) return;
 
     const res = await fetch('/api/share-admin/process-allotment', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ offeringId, allottedUserIds })
+        body: JSON.stringify({ offeringId, allotments })
     });
 
     const result = await res.json();
@@ -494,4 +533,44 @@ async function processAllotment(offeringId) {
         showShareAdminPanel('allotment-panel');
         fetchOfferingsForAllotment(); // Refresh the list of offerings
     }
+}
+
+async function fetchStocksForUpdate() {
+    const res = await fetch('/api/share-admin/stocks', { credentials: 'include' });
+    if (!res.ok) {
+        console.error("Failed to fetch stocks for update");
+        return;
+    }
+    const stocks = await res.json();
+    const tableBody = document.getElementById('stocks-for-update-body');
+    if (stocks.length > 0) {
+        tableBody.innerHTML = stocks.map(s => `
+            <tr>
+                <td>${escapeHTML(s.symbol)}</td>
+                <td>${escapeHTML(s.name)}</td>
+                <td>Rs. ${parseFloat(s.current_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td><input type="number" id="price-update-${s.id}" placeholder="Enter new price" step="0.01"></td>
+                <td><button class="action-btn-blue" onclick="updateStockPrice(${s.id})">Update</button></td>
+            </tr>
+        `).join('');
+    } else {
+        tableBody.innerHTML = '<tr><td colspan="5">No stocks listed yet. Add one from the "List New Stock" panel.</td></tr>';
+    }
+}
+
+async function updateStockPrice(stockId) {
+    const newPrice = document.getElementById(`price-update-${stockId}`).value;
+    if (!newPrice || isNaN(newPrice) || newPrice <= 0) {
+        return alert("Please enter a valid new price.");
+    }
+
+    const res = await fetch(`/api/share-admin/stocks/${stockId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_price: newPrice })
+    });
+    const result = await res.json();
+    alert(result.message);
+    if (res.ok) { fetchStocksForUpdate(); }
 }

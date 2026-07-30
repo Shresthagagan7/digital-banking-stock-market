@@ -2,7 +2,7 @@ const { hash } = require('bcryptjs');
 
 async function createAdminHash() {
     // --- You can set your desired password and PIN here ---
-    const passwordToHash = 'tanka@123';
+    const passwordToHash = 'gagan@123';
     const pinToHash = '1223'; // A sample PIN
     // -----------------------------------------------------------
 

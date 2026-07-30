@@ -99,14 +99,20 @@
                 <button class="back-btn" onclick="showShareAdminPanel('allotment-panel')">← Back to Offerings</button>
                 <div class="my-section admin-table-container">
                     <h3 id="allotment-details-header">Allotment for [Company]</h3>
-                    <div id="allotment-info" style="margin-bottom: 15px; background: #f1f1f1; padding: 10px; border-radius: 5px;"></div>
+                    <div id="allotment-info" style="display: flex; gap: 20px; margin-bottom: 15px; background: #f1f1f1; padding: 10px; border-radius: 5px; font-size: 14px;">
+                        <span id="allotment-total-units"></span>
+                        <span id="allotment-total-applicants"></span>
+                        <span id="allotment-total-applied-units"></span>
+                        <span id="allotment-units-to-allot"><strong>Units to Allot:</strong> <input type="number" id="units-to-allot-input" value="10" style="width: 60px;"> <button class="action-btn-blue" style="padding: 2px 8px; font-size: 12px;" onclick="setAllAllottedUnits()">Set All</button></span>
+                    </div>
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th><input type="checkbox" onchange="toggleAllCheckboxes(this)"> Allot All</th>
+                                <th style="width: 5%;">S.N.</th>
                                 <th>Applicant Name</th>
-                                <th>Account No.</th>
-                                <th>Applied Units</th>
+                                <th style="width: 15%;">Applied Units</th>
+                                <th style="width: 15%;">Allotted Units</th>
+                                <th style="width: 20%;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="applicants-for-allotment-body">
@@ -143,8 +149,7 @@
                             <tr><th>Symbol</th><th>Company</th><th>Current Price</th><th>New Price</th><th>Actions</th></tr>
                         </thead>
                         <tbody id="stocks-for-update-body">
-                            <!-- Data will be loaded here -->
-                            <tr><td>(Sample) NICA</td><td>NIC Asia Bank</td><td>Rs. 750.00</td><td><input type="number" placeholder="Enter new price"></td><td><button class="action-btn-blue">Update</button></td></tr>
+                            <!-- Stock data will be loaded here by JavaScript -->
                         </tbody>
                     </table>
                 </div>
