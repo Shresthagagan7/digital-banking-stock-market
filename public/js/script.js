@@ -159,6 +159,47 @@ function switchAsbaTab(tabId) {
     if (activeBtn) activeBtn.classList.add('active-tab');
 }
 
+async function openShareResult() {
+    showDashboardPanel('share-result-section');
+    const table = document.getElementById('standalone-result-table');
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th>Company</th>
+                <th>Applied Units</th>
+                <th>Allotted Units</th>
+                <th>Status</th>
+                <th>Refund Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td colspan="5" style="text-align:center; padding: 15px;">Loading results...</td></tr>
+        </tbody>`;
+
+    const res = await fetch('/api/asba/my-applications', { credentials: 'include' });
+    if (res.ok) {
+        const applications = await res.json();
+        const results = applications.filter(app => app.status === 'Allotted' || app.status === 'Not Allotted');
+        const tableBody = table.querySelector('tbody');
+
+        if (results.length > 0) {
+            tableBody.innerHTML = results.map(app => {
+                const refundAmount = (app.applied_units - (app.allotted_units || 0)) * app.price_per_unit;
+                return `
+                    <tr>
+                        <td>${app.company_name}</td>
+                        <td>${app.applied_units}</td>
+                        <td>${app.allotted_units || 0}</td>
+                        <td><span class="status-badge" style="background-color: ${app.status === 'Allotted' ? '#27ae60' : '#e74c3c'};">${app.status}</span></td>
+                        <td>Rs. ${refundAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    </tr>`;
+            }).join('');
+        } else {
+            tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 15px;">No allotment results available yet.</td></tr>';
+        }
+    }
+}
+
 async function openMyAsba() {
     showDashboardPanel('my-asba-section');
     switchAsbaTab('asba-apply-tab'); // Show the first tab by default
@@ -168,6 +209,11 @@ async function openMyAsba() {
     if (applicationsRes.ok) {
         const applications = await applicationsRes.json();
         const applicationsBody = document.getElementById('asba-my-applications-body');
+        const resultsBody = document.getElementById('asba-results-body');
+
+        // Filter for allotment results
+        const allotmentResults = applications.filter(app => app.status === 'Allotted' || app.status === 'Not Allotted');
+
         if (applications.length > 0) {
             applicationsBody.innerHTML = applications.map(app => `
                 <tr>
@@ -181,7 +227,21 @@ async function openMyAsba() {
             applicationsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 15px;">You have not applied for any shares yet.</td></tr>';
         }
 
-        // Now fetch open and upcoming issues, and use the application data to show "Edit" button
+        // Populate the Allotment Result tab
+        if (allotmentResults.length > 0) {
+            resultsBody.innerHTML = allotmentResults.map(app => `
+                <tr>
+                    <td>${app.company_name}</td>
+                    <td>${app.applied_units}</td>
+                    <td>${app.allotted_units || 0}</td>
+                    <td><span class="status-badge" style="background-color: ${app.status === 'Allotted' ? '#27ae60' : (app.status === 'Not Allotted' ? '#e74c3c' : '#f39c12')};">${app.status}</span></td>
+                </tr>
+            `).join('');
+        } else {
+            resultsBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 15px;">No allotment results available yet.</td></tr>';
+        }
+
+        // Fetch open and upcoming issues, and use the application data to show "Edit" button
         const appliedOfferingIds = new Set(applications.map(app => app.offering_id));
 
         // Fetch and display OPEN offerings for "Apply for Issue" tab

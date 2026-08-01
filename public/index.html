@@ -157,7 +157,7 @@
                         <li onclick="showDashboardPanel('share-market-section')">📁 Portfolio</li>
                         <li onclick="showDashboardPanel('share-market-section')">🛒 Buy Shares</li>
                         <li onclick="showDashboardPanel('share-market-section')">💰 Sell Shares</li>
-                        <li onclick="alert('Share Result service is pending.')">📊 Share Result</li>
+                        <li onclick="openShareResult()">📊 Share Result</li>
                         <li onclick="alert('Watchlist feature coming soon!')">🔭 Watchlist</li>
                         <li onclick="alert('Order History coming soon!')">⏳ Order History</li>
                         <li onclick="alert('Market Overview coming soon!')">📉 Market Overview</li>
@@ -244,7 +244,7 @@
                                     <div class="icon">💰</div>
                                     <p>Sell Shares</p>
                                 </div>
-                                <div class="option-card" onclick="alert('Share Result service is pending.')">
+                                <div class="option-card" onclick="openShareResult()">
                                     <div class="icon">📊</div>
                                     <p>Share Result</p>
                                 </div>
@@ -666,6 +666,7 @@
                         <button class="tab-btn active-tab" onclick="switchAsbaTab('asba-apply-tab')">Apply for Issue</button>
                         <button class="tab-btn" onclick="switchAsbaTab('asba-upcoming-tab')">Current Issue</button>
                         <button class="tab-btn" onclick="switchAsbaTab('asba-report-tab')">Application Report</button>
+                        <button class="tab-btn" onclick="switchAsbaTab('asba-result-tab')">Allotment Result</button>
                     </div>
 
                     <!-- Apply for Issue Tab -->
@@ -719,6 +720,37 @@
                         </div>
                     </div>
 
+                    <!-- Allotment Result Tab -->
+                    <div id="asba-result-tab" class="asba-tab-content hidden">
+                        <div class="my-section admin-table-container">
+                            <h3>Allotment Result</h3>
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Company</th>
+                                        <th>Applied Units</th>
+                                        <th>Allotted Units</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="asba-results-body">
+                                    <!-- Data will be loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <button onclick="showDashboardPanel('main-view')" style="margin-top: 30px; background: #95a5a6; width: 200px;">Back to Dashboard</button>
+                </div>
+
+                <!-- Standalone Share Result Section -->
+                <div id="share-result-section" class="container hidden" style="max-width: 950px; text-align: left; padding: 30px;">
+                    <h2 style="margin-bottom: 25px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">Share Allotment Result</h2>
+                    <div class="my-section admin-table-container">
+                        <table class="admin-table" id="standalone-result-table">
+                            <!-- Table content will be populated by openShareResult() -->
+                        </table>
+                    </div>
                     <button onclick="showDashboardPanel('main-view')" style="margin-top: 30px; background: #95a5a6; width: 200px;">Back to Dashboard</button>
                 </div>
 

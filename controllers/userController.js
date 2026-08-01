@@ -180,7 +180,7 @@ exports.getUpcomingOfferings = async (req, res) => {
 exports.getMyApplications = async (req, res) => {
     try {
         const sql = `
-            SELECT sa.applied_at, so.company_name, sa.applied_units, sa.status, sa.offering_id, so.symbol, so.price_per_unit
+            SELECT sa.applied_at, so.company_name, sa.applied_units, sa.allotted_units, sa.status, sa.offering_id, so.symbol, so.price_per_unit
             FROM share_applications sa
             JOIN share_offerings so ON sa.offering_id = so.id
             WHERE sa.user_id = ?
