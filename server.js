@@ -21,7 +21,6 @@ app.use(express.static('public'));
 // All admin routes are handled by adminRoutes
 app.use('/api/admin', adminRoutes);
 // All share admin routes
-app.use('/api/share-admin', shareAdminRoutes);
 
 app.get('/admin-panel', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
@@ -444,8 +443,47 @@ app.post('/api/forgot-password/reset', async (req, res) => {
         res.json({ message: "Password updated successfully!" });
     });
 });
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
+async function initializeApp() {
+    try {
+        // Ensure the database schema is up-to-date before starting the server and registering routes
+        const [columns] = await db.promise().query("SHOW COLUMNS FROM `share_applications` LIKE 'allotted_units'");
+        if (columns.length === 0) {
+            await db.promise().query("ALTER TABLE `share_applications` ADD COLUMN `allotted_units` INT DEFAULT 0");
+            console.log("Column 'allotted_units' added to 'share_applications' table.");
+        }
+
+        // Ensure the 'portfolio' table exists
+        const [portfolioTable] = await db.promise().query("SHOW TABLES LIKE 'portfolio'");
+        if (portfolioTable.length === 0) {
+            const createPortfolioTableSQL = `
+                CREATE TABLE \`portfolio\` (
+                  \`id\` INT NOT NULL AUTO_INCREMENT,
+                  \`user_id\` INT NOT NULL,
+                  \`symbol\` VARCHAR(10) NOT NULL,
+                  \`quantity\` INT NOT NULL,
+                  \`average_price\` DECIMAL(10, 2) NOT NULL,
+                  PRIMARY KEY (\`id\`),
+                  UNIQUE KEY \`user_symbol_unique\` (\`user_id\`, \`symbol\`)
+                );`;
+            await db.promise().query(createPortfolioTableSQL);
+            console.log("Table 'portfolio' created successfully.");
+        }
+
+        // Now register the share admin routes, as the database is ready
+        app.use('/api/share-admin', shareAdminRoutes);
+
+        app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+    } catch (error) {
+        console.error("Failed to initialize application:", error);
+        process.exit(1); // Exit if critical initialization fails
+    }
+}
+
+// Call the initialization function to start the app
+initializeApp();
 
 // Start the background job to update share statuses
 require('./controllers/update_share_status.js');
