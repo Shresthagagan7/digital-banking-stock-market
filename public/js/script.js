@@ -85,17 +85,30 @@ async function loadPortfolio() {
     
     if (portfolio.length > 0) {
         tableBody.innerHTML = portfolio.map(item => `
-            <tr>
-                <td>${item.symbol}</td>
-                <td>${item.quantity}</td>
-                <td>Rs. ${parseFloat(item.average_price).toFixed(2)}</td>
-                <td>
-                    <button onclick="sellFromPortfolio('${item.symbol}', ${item.quantity})" style="padding: 2px 10px; background: #e67e22; font-size: 12px; cursor: pointer;">Sell</button>
-                </td>
-            </tr>
+            ${(() => {
+                const avgPrice = parseFloat(item.average_price);
+                const currentPrice = parseFloat(item.current_price) || 0;
+                const quantity = parseInt(item.quantity);
+                const investment = avgPrice * quantity;
+                const currentValue = currentPrice * quantity;
+                const pnl = currentValue - investment;
+                const pnlClass = pnl >= 0 ? 'profit' : 'loss';
+                const pnlSign = pnl >= 0 ? '+' : '';
+
+                return `
+                    <tr>
+                        <td>${item.company_name || 'N/A'}</td>
+                        <td>${item.symbol}</td>
+                        <td>${quantity}</td>
+                        <td>Rs. ${avgPrice.toFixed(2)}</td>
+                        <td>Rs. ${currentPrice.toFixed(2)}</td>
+                        <td class="${pnlClass}">${pnlSign}Rs. ${pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td><button onclick="sellFromPortfolio('${item.symbol}', ${quantity})" class="action-btn-red" style="padding: 2px 10px; font-size: 12px; cursor: pointer;">Sell</button></td>
+                    </tr>`;
+            })()}
         `).join('');
     } else {
-        tableBody.innerHTML = "<tr><td colspan='4'>No shares in portfolio.</td></tr>";
+        tableBody.innerHTML = "<tr><td colspan='7'>No shares in portfolio.</td></tr>";
     }
 }
 function sellFromPortfolio(symbol, maxQty) {

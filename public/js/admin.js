@@ -429,7 +429,7 @@ async function fetchOfferingsForAllotment() {
             </tr>
         `).join('');
     } else {
-        tableBody.innerHTML = '<tr><td colspan="4">No offerings are ready for allotment.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="5">No stocks listed in the system. Please add new stocks using the "List New Stock" section.</td></tr>';
     }
 }
 
@@ -547,28 +547,28 @@ async function fetchStocksForUpdate() {
         tableBody.innerHTML = stocks.map(s => `
             <tr>
                 <td>${escapeHTML(s.symbol)}</td>
-                <td>${escapeHTML(s.name)}</td>
-                <td>Rs. ${parseFloat(s.current_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                <td><input type="number" id="price-update-${s.id}" placeholder="Enter new price" step="0.01"></td>
+                <td><input type="text" id="name-update-${s.id}" value="${escapeHTML(s.name)}" style="width: 100%;"></td>
+                <td><input type="number" id="price-update-${s.id}" value="${parseFloat(s.current_price).toFixed(2)}" step="0.01" style="width: 100%;"></td>
                 <td><button class="action-btn-blue" onclick="updateStockPrice(${s.id})">Update</button></td>
             </tr>
         `).join('');
     } else {
-        tableBody.innerHTML = '<tr><td colspan="5">No stocks listed yet. Add one from the "List New Stock" panel.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="4">No stocks listed in the system. Please add new stocks using the "List New Stock" section.</td></tr>';
     }
 }
 
 async function updateStockPrice(stockId) {
+    const newName = document.getElementById(`name-update-${stockId}`).value;
     const newPrice = document.getElementById(`price-update-${stockId}`).value;
-    if (!newPrice || isNaN(newPrice) || newPrice <= 0) {
-        return alert("Please enter a valid new price.");
+    if (!newName || !newPrice || isNaN(newPrice) || newPrice < 0) {
+        return alert("Please enter a valid name and price.");
     }
 
     const res = await fetch(`/api/share-admin/stocks/${stockId}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ current_price: newPrice })
+        body: JSON.stringify({ name: newName, current_price: newPrice })
     });
     const result = await res.json();
     alert(result.message);

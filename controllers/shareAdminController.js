@@ -3,15 +3,11 @@ const db = require('../db');
 exports.getShareStats = async (req, res) => {
     try {
         const [[stockStats]] = await db.promise().query("SELECT COUNT(*) as totalStocks FROM stocks");
-        // Note: Calculating total portfolio value can be complex.
-        // This is a simplified version assuming a `user_portfolio` table exists.
-        // For now, we will return a mock value or a simple calculation.
-        // Let's assume a `user_portfolio` table with `quantity` and `stock_id`
-        // and we join with `stocks` to get the price.
+        // Corrected the query to use the 'portfolio' table and join on 'symbol'.
         const [[portfolioValue]] = await db.promise().query(`
             SELECT SUM(p.quantity * s.current_price) as totalValue
-            FROM user_portfolio p
-            JOIN stocks s ON p.stock_id = s.id
+            FROM portfolio p
+            JOIN stocks s ON p.symbol = s.symbol
         `);
 
         res.json({
@@ -26,7 +22,12 @@ exports.getShareStats = async (req, res) => {
 
 exports.getAllStocks = async (req, res) => {
     try {
-        const [stocks] = await db.promise().query("SELECT * FROM stocks ORDER BY symbol ASC");
+        // Fetches all stocks for the admin to manage their prices.
+        const query = `
+            SELECT id, symbol, name, current_price 
+            FROM stocks 
+            ORDER BY symbol ASC`;
+        const [stocks] = await db.promise().query(query);
         res.json(stocks);
     } catch (err) {
         console.error("Error fetching all stocks:", err);
@@ -53,12 +54,12 @@ exports.addStock = async (req, res) => {
 
 exports.updateStockPrice = async (req, res) => {
     const { id } = req.params;
-    const { current_price } = req.body;
-    if (!current_price || isNaN(current_price)) {
-        return res.status(400).json({ message: "A valid price is required." });
+    const { name, current_price } = req.body;
+    if (!name || !current_price || isNaN(current_price)) {
+        return res.status(400).json({ message: "A valid name and price are required." });
     }
     try {
-        await db.promise().query("UPDATE stocks SET current_price = ? WHERE id = ?", [current_price, id]);
+        await db.promise().query("UPDATE stocks SET name = ?, current_price = ? WHERE id = ?", [name, current_price, id]);
         res.json({ message: "Stock price updated successfully." });
     } catch (err) {
         console.error("Error updating stock price:", err);

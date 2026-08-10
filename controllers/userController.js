@@ -15,6 +15,12 @@ exports.buyShare = async (req, res) => {
             throw new Error("Insufficient bank balance to buy shares.");
         }
 
+        // Check if the stock exists in the stocks table before allowing a purchase
+        const [stockExists] = await connection.query("SELECT id FROM stocks WHERE symbol = ?", [symbol]);
+        if (stockExists.length === 0) {
+            throw new Error(`The stock with symbol '${symbol}' is not listed in the market. Cannot purchase.`);
+        }
+
         await connection.query("UPDATE users SET balance = balance - ? WHERE id = ?", [totalCost, userId]);
 
         const [existing] = await connection.query("SELECT * FROM portfolio WHERE user_id = ? AND symbol = ?", [userId, symbol]);
@@ -82,7 +88,15 @@ exports.sellShare = async (req, res) => {
 
 
 exports.getPortfolio = async (req, res) => {
-    const [rows] = await db.promise().query("SELECT * FROM portfolio WHERE user_id = ?", [req.user.id]);
+    // Use LEFT JOIN to ensure all portfolio items are returned, even if the stock is not listed in the 'stocks' table.
+    // This prevents portfolio items from disappearing if a stock is delisted or not present in the stocks table.
+    const query = ` 
+        SELECT p.symbol, p.quantity, p.average_price, s.name AS company_name, s.current_price
+        FROM portfolio p
+        LEFT JOIN stocks s ON p.symbol = s.symbol
+        WHERE p.user_id = ?
+    `;
+    const [rows] = await db.promise().query(query, [req.user.id]);
     res.json(rows);
 };
 
