@@ -444,48 +444,86 @@
                 </div>
 
                 
-                <div id="send-money-section" class="container hidden">
-                    <h2>Send Money</h2>
-                    <p>Select your transfer method:</p>
-                    <div class="options-grid" style="margin-top: 20px;">
-                        <div class="option-card" onclick="showDashboardPanel('same-bank-section')">
-                            <div class="icon">🏦</div>
-                            <p>Same Bank</p>
-                        </div>
-                        <div class="option-card" onclick="showDashboardPanel('other-bank-section')">
-                            <div class="icon">🏛️</div>
-                            <p>Other Bank</p>
+                <!-- Unified Fund Transfer Section -->
+                <div id="send-money-section" class="container hidden transfer-step" style="max-width: 600px;">
+                    <h2>Fund Transfer</h2>
+                    <div class="details-box" style="text-align: left; margin-bottom: 20px;">
+                        <p><strong>From:</strong> <span id="transfer-from-acc-display"></span></p>
+                        <p><small id="transfer-from-info"></small></p>
+                    </div>
+
+                    <div class="form-group" style="text-align: left;">
+                        <label>Transfer Type</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="transfer_type" value="same" checked onchange="toggleOtherBankFields()"> Same Bank</label>
+                            <label><input type="radio" name="transfer_type" value="other" onchange="toggleOtherBankFields()"> Other Bank</label>
                         </div>
                     </div>
+
+                    <div id="other-bank-name-field" class="hidden" style="margin-bottom: 15px;">
+                         <select id="other-bank-list" class="bank-select">
+                            <option value="">Select Other Bank</option>
+                            <option value="Nabil Bank">Nabil Bank</option>
+                            <option value="NIC Asia Bank">NIC Asia Bank</option>
+                            <option value="Global IME Bank">Global IME Bank</option>
+                            <option value="Prabhu Bank">Prabhu Bank</option>
+                        </select>
+                    </div>
+
+                    <input type="text" id="transfer-acc-no" placeholder="Recipient Account Number *" required onkeyup="fetchRecipientName()">
+                    <input type="text" id="transfer-acc-name" placeholder="Recipient Name *" required>
+                    <input type="number" id="transfer-amount" placeholder="Amount (Rs.) *" required>
+                    <input type="text" id="transfer-remarks" placeholder="Remarks (Optional)">
+                    <input type="password" id="transfer-pin" placeholder="Transaction PIN *" required maxlength="4">
+                    
+                    <button onclick="handleTransferContinue()">Continue</button>
                     <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6;">Cancel</button>
                 </div>
 
-        
-                <div id="same-bank-section" class="container hidden">
-                    <h2>Same Bank Transfer</h2>
-                    <input type="text" id="sb-acc" placeholder="Recipient Account Number">
-                    <input type="number" id="sb-amount" placeholder="Amount (Rs.)">
-                    <button onclick="processTransfer('same')">Transfer Now</button>
+                <!-- Transfer Confirmation Step -->
+                <div id="transfer-confirm-step" class="container hidden transfer-step">
+                    <h2>Confirm Transfer</h2>
+                    <div class="details-box">
+                        <p><strong>From:</strong> <span id="conf-from-acc"></span></p>
+                        <p><strong>To:</strong> <span id="conf-to-acc"></span></p>
+                        <p><strong>Receiver:</strong> <span id="conf-receiver"></span></p>
+                        <p><strong>Amount:</strong> <strong id="conf-amount" style="color: #e74c3c;"></strong></p>
+                        <p><strong>Remarks:</strong> <span id="conf-remarks"></span></p>
+                    </div>
+                    <button id="final-transfer-btn" onclick="processTransferFinal()">Transfer Now</button>
                     <button onclick="showDashboardPanel('send-money-section')" style="background: #95a5a6;">Back</button>
                 </div>
 
-                
-                <div id="other-bank-section" class="container hidden">
-                    <h2>Other Bank Transfer</h2>
-                    <select id="ob-bank-list" class="bank-select">
-                        <option value="">Select Target Bank</option>
-                        <option value="Global Bank">Global Bank</option>
-                        <option value="Nabil Bank">Nabil Bank</option>
-                        <option value="Siddhartha Bank">Siddhartha Bank</option>
-                        <option value="NIC Asia">NIC Asia</option>
-                    </select>
-                    <input type="text" id="ob-acc" placeholder="Recipient Account Number">
-                    <input type="text" id="ob-name" placeholder="Recipient Full Name">
-                    <input type="number" id="ob-amount" placeholder="Amount (Rs.)">
-                    <button onclick="processTransfer('other')">Send Money</button>
-                    <button onclick="showDashboardPanel('send-money-section')" style="background: #95a5a6;">Back</button>
-                </div>
+                <!-- Transfer Success Step -->
+                <div id="transfer-success-step" class="container hidden transfer-step" style="max-width: 600px;">
+                    <h2>Transfer Successful</h2>
 
+                    <div class="details-box" style="text-align: left;">
+                        <p>
+                            <strong>Transaction ID:</strong>
+                            <span id="success-txn-id"></span>
+                        </p>
+
+                        <p>
+                            <strong>Amount:</strong>
+                            <span id="success-amount"></span>
+                        </p>
+
+                        <p>
+                            <strong>Receiver:</strong>
+                            <span id="success-receiver"></span>
+                        </p>
+
+                        <p>
+                            <strong>Date:</strong>
+                            <span id="success-date"></span>
+                        </p>
+                    </div>
+
+                    <button onclick="showDashboardPanel('main-view')">
+                        Back to Dashboard
+                    </button>
+                </div>
         
                 <div id="payments-selection-section" class="container hidden">
                     <h2>Utility Payments</h2>

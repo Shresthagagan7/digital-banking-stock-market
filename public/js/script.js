@@ -719,7 +719,9 @@ async function login() {
         const res = await fetch('/api/login', {
             credentials: 'include',
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify({ phone, password }),
         });
 
@@ -903,28 +905,38 @@ async function viewTransactionHistory() {
 
 function openSendMoney() {
     showDashboardPanel('send-money-section');
-    
-    showTransferStep('transfer-form-step');
     if (currentUser) { 
         document.getElementById('transfer-from-acc-display').innerText = `Savings Account - ${currentUser.account_number}`;
         document.getElementById('transfer-from-info').innerText = `Available Balance : Rs. ${parseFloat(currentUser.balance).toLocaleString()}`;
     }
 }
 
-function showTransferStep(stepId) {
-    document.querySelectorAll('.transfer-step').forEach(step => step.classList.add('hidden'));
-    document.getElementById(stepId).classList.remove('hidden');
+function toggleOtherBankFields() {
+    const transferType = document.querySelector('input[name="transfer_type"]:checked').value;
+    const otherBankField = document.getElementById('other-bank-name-field');
+    otherBankField.classList.toggle('hidden', transferType === 'same');
 }
 
 async function fetchRecipientName() {
     const accNo = document.getElementById('transfer-acc-no').value;
+    const transferType = document.querySelector('input[name="transfer_type"]:checked').value;
     const nameDisplay = document.getElementById('transfer-acc-name');
-    if (accNo.length >= 10) {
-        nameDisplay.value = "Fetching...";
-       
-        setTimeout(() => {
-            nameDisplay.value = "Sita Sharma"; 
-        }, 1000);
+
+    // Only fetch name for same bank transfers
+    if (transferType === 'same' && accNo.length >= 10) {
+        nameDisplay.value = "Fetching name...";
+        try {
+            const res = await fetch(`/api/user-by-account/${accNo}`, { credentials: 'include' });
+            if (res.ok) {
+                const user = await res.json();
+                nameDisplay.value = `${user.first_name} ${user.last_name}`;
+            } else {
+                nameDisplay.value = "Account not found";
+            }
+        } catch (error) {
+            console.error("Error fetching recipient name:", error);
+            nameDisplay.value = "Error fetching name";
+        }
     }
 }
 
@@ -941,56 +953,140 @@ function handleTransferContinue() {
     
     document.getElementById('conf-from-acc').innerText = currentUser.account_number;
     document.getElementById('conf-to-acc').innerText = accNo;
-    document.getElementById('conf-receiver').innerText = document.getElementById('transfer-acc-name').value || "Sita Sharma";
+    document.getElementById('conf-receiver').innerText = document.getElementById('transfer-acc-name').value || "N/A";
     document.getElementById('conf-amount').innerText = `Rs. ${parseFloat(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     document.getElementById('conf-remarks').innerText = remarks || "Personal Transfer";
 
-    showTransferStep('transfer-confirm-step');
+    showDashboardPanel('transfer-confirm-step');
 }
 
 async function processTransferFinal() {
-    const otp = document.getElementById('transfer-otp').value;
-    if (!otp) return alert("Please enter OTP");
+    const btn = document.getElementById('final-transfer-btn');
 
-    const typeElem = document.querySelector('input[name="transfer_type"]:checked');
-    const transferType = typeElem ? typeElem.value : 'Another Customer';
+    const transferTypeElem =
+        document.querySelector('input[name="transfer_type"]:checked');
+
+    if (!transferTypeElem) {
+        return alert("Please select a transfer type.");
+    }
 
     const data = {
         amount: parseFloat(document.getElementById('transfer-amount').value),
-        recipientAccount: document.getElementById('transfer-acc-no').value,
-        transferType: transferType,
-        remarks: document.getElementById('transfer-remarks').value || "Fund Transfer",
-        pin: document.getElementById('transfer-pin').value
+        recipientAccount: document.getElementById('transfer-acc-no').value.trim(),
+        transferType: transferTypeElem.value,
+        remarks: document.getElementById('transfer-remarks').value.trim() || "Fund Transfer",
+        pin: document.getElementById('transfer-pin').value,
+        recipientName: document.getElementById('transfer-acc-name').value.trim() || "N/A"
     };
 
-    const res = await fetch('/api/transfer', {
-        credentials: 'include',
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data),
-    });
+    if (!data.amount || data.amount <= 0) {
+        return alert("Please enter a valid amount.");
+    }
 
-    const result = await res.json();
-    if (res.ok) {
-        currentUser.balance = result.newBalance;
-        updateUI();
-        
-        
+    if (!data.recipientAccount) {
+        return alert("Please enter recipient account number.");
+    }
+
+    if (!data.pin || data.pin.length !== 4) {
+        return alert("Please enter a valid 4-digit transaction PIN.");
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Processing...";
+    }
+
+    try {
+        const res = await fetch('/api/transfer', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        let result;
+
+        try {
+            result = await res.json();
+        } catch {
+            throw new Error(`Server returned invalid response (${res.status})`);
+        }
+
+        if (!res.ok) {
+            throw new Error(
+                result.message || `Transfer failed (${res.status})`
+            );
+        }
+
+        // Update balance
+        if (typeof currentUser !== 'undefined') {
+            currentUser.balance = result.newBalance;
+            updateUI();
+        }
+
         const now = new Date();
-        const txnId = "TXN" + now.getFullYear() + now.getTime().toString().slice(-4);
-        document.getElementById('success-txn-id').innerText = txnId;
-        document.getElementById('success-amount').innerText = `Rs. ${data.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        document.getElementById('success-receiver').innerText = document.getElementById('conf-receiver').innerText;
-        document.getElementById('success-date').innerText = now.toISOString().split('T')[0];
 
-        showTransferStep('transfer-success-step');
-    } else {
-        alert(result.message);
+        const txnId =
+            result.transactionId ||
+            ("TXN" + now.getFullYear() + now.getTime().toString().slice(-4));
+
+        const successTxnId =
+            document.getElementById('success-txn-id');
+
+        const successAmount =
+            document.getElementById('success-amount');
+
+        const successReceiver =
+            document.getElementById('success-receiver');
+
+        const successDate =
+            document.getElementById('success-date');
+
+        const confReceiver =
+            document.getElementById('conf-receiver');
+
+        if (!successTxnId ||
+            !successAmount ||
+            !successReceiver ||
+            !successDate) {
+
+            throw new Error(
+                "Transfer completed, but success screen elements are missing."
+            );
+        }
+
+        successTxnId.innerText = txnId;
+
+        successAmount.innerText =
+            `Rs. ${data.amount.toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            })}`;
+
+        successReceiver.innerText =
+            confReceiver ? confReceiver.innerText : data.recipientName;
+
+        successDate.innerText =
+            now.toISOString().split('T')[0];
+
+        showDashboardPanel('transfer-success-step');
+
+    } catch (error) {
+        console.error('Transfer Error:', error);
+
+        alert(
+            `Transfer Failed: ${error.message}`
+        );
+
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = "Transfer Now";
+        }
     }
 }
-
 function downloadTransferReceipt() {
     alert("Downloading Receipt...");
    

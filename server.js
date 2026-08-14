@@ -284,59 +284,249 @@ app.post('/api/mobile-topup', async (req, res) => {
 
 
 app.post('/api/transfer', authenticateToken, async (req, res) => {
-    const { amount, recipientAccount, transferType, recipientName } = req.body;
+
+    const {
+        amount,
+        recipientAccount,
+        transferType,
+        remarks,
+        pin,
+        recipientName
+    } = req.body;
+
     const senderId = req.user.id;
-    
-    if (isNaN(amount) || amount <= 0) {
-        return res.status(400).json({ message: "Invalid transfer details" });
+
+    // Validate amount
+    if (!amount || isNaN(amount) || Number(amount) <= 0) {
+        return res.status(400).json({
+            message: "Invalid transfer amount."
+        });
     }
 
-    db.beginTransaction(async err => {
-        if (err) return res.status(500).json({ message: "DB error" });
-        try {
-            const [sender] = await db.promise().query("SELECT * FROM users WHERE id = ?", [senderId]);
-            if (!sender.length || sender[0].balance < amount) throw new Error("Insufficient funds or sender not found");
+    // Validate recipient
+    if (!recipientAccount) {
+        return res.status(400).json({
+            message: "Recipient account number is required."
+        });
+    }
 
-            if (transferType === 'same') {
-                const [recip] = await db.promise().query("SELECT id FROM users WHERE account_number = ?", [recipientAccount]);
-                if (!recip.length) throw new Error("Recipient account not found in this bank");
-                if (recip[0].id === senderId) throw new Error("You cannot transfer money to yourself.");
-                
-                
-                await db.promise().query("UPDATE users SET balance = balance - ? WHERE id = ?", [amount, senderId]);
-                await db.promise().query("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'debit', ?, ?)", 
-                    [senderId, amount, `Transfer to ${recipientName || recipientAccount}`]);
-                // Notification for Sender
-                await db.promise().query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", 
-                    [senderId, `You sent Rs. ${amount.toLocaleString()} to Acc: ${recipientAccount}`]);
+    // Validate PIN
+    if (!pin) {
+        return res.status(400).json({
+            message: "Transaction PIN is required."
+        });
+    }
 
-                
-                await db.promise().query("UPDATE users SET balance = balance + ? WHERE id = ?", [amount, recip[0].id]);
-                await db.promise().query("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'credit', ?, ?)", 
-                    [recip[0].id, amount, `Received from ${sender[0].first_name} (${sender[0].account_number})`]);
-                // Notification for Receiver
-                await db.promise().query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", 
-                    [recip[0].id, `You received Rs. ${amount.toLocaleString()} from ${sender[0].first_name}`]);
-            } else {
-                
-                await db.promise().query("UPDATE users SET balance = balance - ? WHERE id = ?", [amount, senderId]);
-                await db.promise().query("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'debit', ?, ?)", 
-                    [senderId, amount, `Other Bank Transfer to ${recipientName} (${recipientAccount})`]);
-                await db.promise().query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", 
-                    [senderId, `Rs. ${amount.toLocaleString()} transferred to other bank (${recipientAccount})`]);
-            }
-            await db.promise().commit();
+    // Validate transfer type
+    if (transferType !== 'same' && transferType !== 'other') {
+        return res.status(400).json({
+            message: "Invalid transfer type."
+        });
+    }
 
-            
-            const [newBal] = await db.promise().query("SELECT balance FROM users WHERE id = ?", [senderId]);
-            res.json({ message: "Transfer Success", newBalance: newBal[0].balance });
-        } catch (e) {
-            await db.promise().rollback();
-            res.status(400).json({ message: e.message });
+    let connection;
+
+    try {
+
+        // Get connection from MySQL pool
+        connection = await db.promise().getConnection();
+
+        // Start transaction
+        await connection.beginTransaction();
+
+        // Get sender
+        const [senderRows] = await connection.query(
+            "SELECT * FROM users WHERE id = ? FOR UPDATE",
+            [senderId]
+        );
+
+        if (senderRows.length === 0) {
+            throw new Error("Sender account not found.");
         }
-    });
-});
 
+        const sender = senderRows[0];
+
+        // Check balance
+        if (Number(sender.balance) < Number(amount)) {
+            throw new Error("Insufficient funds.");
+        }
+
+        // Check transaction PIN
+        const isPinMatch = await bcrypt.compare(
+            String(pin),
+            sender.transaction_pin
+        );
+
+        if (!isPinMatch) {
+            throw new Error("Invalid Transaction PIN.");
+        }
+
+
+        // ==========================================
+        // SAME BANK TRANSFER
+        // ==========================================
+
+        if (transferType === 'same') {
+
+            const [recipientRows] = await connection.query(
+                "SELECT * FROM users WHERE account_number = ? FOR UPDATE",
+                [String(recipientAccount).trim()]
+            );
+
+            if (recipientRows.length === 0) {
+                throw new Error(
+                    "Recipient account not found in this bank."
+                );
+            }
+
+            const recipient = recipientRows[0];
+
+            // Prevent self transfer
+            if (Number(recipient.id) === Number(senderId)) {
+                throw new Error(
+                    "You cannot transfer money to yourself."
+                );
+            }
+
+            // Remove money from sender
+            await connection.query(
+                "UPDATE users SET balance = balance - ? WHERE id = ?",
+                [Number(amount), senderId]
+            );
+
+            // Sender transaction
+            await connection.query(
+                `INSERT INTO transactions
+                (user_id, type, amount, description)
+                VALUES (?, 'debit', ?, ?)`,
+                [
+                    senderId,
+                    Number(amount),
+                    `${remarks || 'Fund Transfer'} - To ${recipientName || recipientAccount}`
+                ]
+            );
+
+            // Sender notification
+            await connection.query(
+                "INSERT INTO notifications (user_id, message) VALUES (?, ?)",
+                [
+                    senderId,
+                    `You sent Rs. ${Number(amount).toLocaleString()} to Acc: ${recipientAccount}`
+                ]
+            );
+
+            // Add money to recipient
+            await connection.query(
+                "UPDATE users SET balance = balance + ? WHERE id = ?",
+                [Number(amount), recipient.id]
+            );
+
+            // Recipient transaction
+            await connection.query(
+                `INSERT INTO transactions
+                (user_id, type, amount, description)
+                VALUES (?, 'credit', ?, ?)`,
+                [
+                    recipient.id,
+                    Number(amount),
+                    `Received from ${sender.first_name} (${sender.account_number})`
+                ]
+            );
+
+            // Recipient notification
+            await connection.query(
+                "INSERT INTO notifications (user_id, message) VALUES (?, ?)",
+                [
+                    recipient.id,
+                    `You received Rs. ${Number(amount).toLocaleString()} from ${sender.first_name}`
+                ]
+            );
+
+        }
+
+
+        // ==========================================
+        // OTHER BANK TRANSFER
+        // ==========================================
+
+        else if (transferType === 'other') {
+
+            // Remove money from sender
+            await connection.query(
+                "UPDATE users SET balance = balance - ? WHERE id = ?",
+                [Number(amount), senderId]
+            );
+
+            // Transaction record
+            await connection.query(
+                `INSERT INTO transactions
+                (user_id, type, amount, description)
+                VALUES (?, 'debit', ?, ?)`,
+                [
+                    senderId,
+                    Number(amount),
+                    `${remarks || 'Other Bank Transfer'} - To ${recipientName || 'N/A'} (${recipientAccount})`
+                ]
+            );
+
+            // Notification
+            await connection.query(
+                "INSERT INTO notifications (user_id, message) VALUES (?, ?)",
+                [
+                    senderId,
+                    `Rs. ${Number(amount).toLocaleString()} transferred to other bank (${recipientAccount})`
+                ]
+            );
+        }
+
+
+        // Commit transaction
+        await connection.commit();
+
+
+        // Get updated balance
+        const [balanceRows] = await connection.query(
+            "SELECT balance FROM users WHERE id = ?",
+            [senderId]
+        );
+
+        return res.status(200).json({
+            message: "Transfer Success",
+            newBalance: balanceRows[0].balance
+        });
+
+
+    } catch (error) {
+
+        console.error("TRANSFER ERROR:", error);
+
+        // Rollback if something failed
+        if (connection) {
+            try {
+                await connection.rollback();
+            } catch (rollbackError) {
+                console.error(
+                    "Rollback Error:",
+                    rollbackError
+                );
+            }
+        }
+
+        return res.status(400).json({
+            message: error.message || "Transfer failed."
+        });
+
+
+    } finally {
+
+        // Return connection to pool
+        if (connection) {
+            connection.release();
+        }
+
+    }
+
+});
 
 app.post('/api/buy-share', authenticateToken, userController.buyShare);
 app.post('/api/sell-share', authenticateToken, userController.sellShare);
@@ -372,6 +562,35 @@ app.post('/api/deposit', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Failed to process deposit" });
+    }
+});
+
+app.get('/api/admin/user-by-account/:accountNumber', authenticateToken, async (req, res) => {
+    const { accountNumber } = req.params;
+    try {
+        const [users] = await db.promise().query("SELECT first_name, last_name FROM users WHERE account_number = ?", [accountNumber]);
+        if (users.length === 0) {
+            return res.status(404).json({ message: "User not found." });
+        }
+        res.json(users[0]);
+    } catch (err) {
+        console.error("Error fetching user by account number:", err);
+        res.status(500).json({ message: "Server error." });
+    }
+});
+
+app.get('/api/user-by-account/:accountNumber', authenticateToken, async (req, res) => {
+    const { accountNumber } = req.params;
+    try {
+        // Ensure the account number is treated as a number for matching BIGINT in DB
+        const [users] = await db.promise().query("SELECT first_name, last_name FROM users WHERE account_number = ?", [Number(accountNumber)]);
+        if (users.length === 0) {
+            return res.status(404).json({ message: "User not found." });
+        }
+        res.json(users[0]);
+    } catch (err) {
+        console.error("Error fetching user by account number:", err);
+        res.status(500).json({ message: "Server error." });
     }
 });
 
