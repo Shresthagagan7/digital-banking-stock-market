@@ -14,6 +14,7 @@ router.use(authenticateToken, isAdmin);
 
 router.get('/stats', adminController.getStats);
 router.get('/all-users', adminController.getAllUsers);
+router.get('/share-holders', adminController.getShareHolders);
 router.get('/pending-requests', adminController.getPendingRequests);
 
 // Routes for admin actions

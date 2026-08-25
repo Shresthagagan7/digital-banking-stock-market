@@ -78,11 +78,12 @@ async function fetchAdminData(adminUser, filter = "") {
     const fetchOptions = { credentials: 'include', headers };
 
     try {
-        const [resStats, resUsers, resPending, resNoti] = await Promise.all([
+        const [resStats, resUsers, resPending, resNoti, resShareHolders] = await Promise.all([
             fetch('/api/admin/stats', fetchOptions),
             fetch('/api/admin/all-users', fetchOptions),
             fetch('/api/admin/pending-requests', fetchOptions),
-            fetch(`/api/notifications/${adminUser.id}`, fetchOptions)
+            fetch(`/api/notifications/${adminUser.id}`, fetchOptions),
+            fetch('/api/admin/share-holders', fetchOptions)
         ]);
 
         if (resStats.status === 401 || resStats.status === 403) {
@@ -101,6 +102,7 @@ async function fetchAdminData(adminUser, filter = "") {
         const stats = resStats.ok ? await resStats.json() : { totalUsers: 0, totalDeposits: 0 };
         allUsers = resUsers.ok ? await resUsers.json() : [];
         allPendingUsers = resPending.ok ? await resPending.json() : [];
+        const shareHolderData = resShareHolders.ok ? await resShareHolders.json() : { summary: {}, users: [] };
 
         if (resNoti && resNoti.ok) {
             const notifications = await resNoti.json();
@@ -126,11 +128,37 @@ async function fetchAdminData(adminUser, filter = "") {
 
         renderPendingUsers(allPendingUsers);
         renderUsers(allUsers, filter);
+        renderAdminShareHolders(shareHolderData);
 
     } catch (err) {
         console.error("Fetch Error:", err);
         alert("Failed to connect to server. Check if your backend is running.");
     }
+}
+
+function renderAdminShareHolders(shareHolders) {
+    const tableBody = document.getElementById('admin-share-holders-body');
+    if (!tableBody) return;
+
+    const summary = shareHolders.summary || {};
+    const formatAmount = amount => `Rs. ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById('admin-share-total-amount').innerText = formatAmount(summary.total_amount);
+    document.getElementById('admin-share-active-amount').innerText = formatAmount(summary.active_amount);
+    document.getElementById('admin-share-hold-amount').innerText = formatAmount(summary.hold_amount);
+
+    if (!shareHolders.users || shareHolders.users.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4">No user has an amount on hold.</td></tr>';
+        return;
+    }
+
+    tableBody.innerHTML = shareHolders.users.map(holder => `
+        <tr>
+            <td>${escapeHTML(`${holder.first_name} ${holder.last_name}`)}</td>
+            <td>${escapeHTML(String(holder.account_number))}</td>
+            <td>${escapeHTML(holder.hold_reason)}</td>
+            <td>${formatAmount(holder.hold_balance)}</td>
+        </tr>
+    `).join('');
 }
 
 function renderPendingUsers(pendingUsers) {
@@ -416,17 +444,22 @@ async function fetchShareHolders() {
     const tableBody = document.getElementById('share-holders-body');
     if (!tableBody) return;
 
-    tableBody.innerHTML = '<tr><td colspan="7">Loading share holders...</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="7">Loading allotted shares...</td></tr>';
     try {
         const res = await fetch('/api/share-admin/share-holders', { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch share holders');
 
         const shareHolders = await res.json();
-        if (shareHolders.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="7">No share holders found.</td></tr>';
+        const formatAmount = amount => `Rs. ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        if (!shareHolders || shareHolders.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="7">No allotted shares found.</td></tr>';
             return;
         }
 
+        const formatPrice = price => price === null || price === undefined
+            ? 'Not listed'
+            : `Rs. ${Number(price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         tableBody.innerHTML = shareHolders.map(holder => `
             <tr>
                 <td>${escapeHTML(`${holder.first_name} ${holder.last_name}`)}</td>
@@ -434,13 +467,13 @@ async function fetchShareHolders() {
                 <td>${escapeHTML(holder.company_name)}</td>
                 <td>${escapeHTML(holder.symbol)}</td>
                 <td>${Number(holder.quantity).toLocaleString('en-IN')}</td>
-                <td>Rs. ${Number(holder.average_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                <td>Rs. ${Number(holder.current_value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td>${formatPrice(holder.average_price)}</td>
+                <td>${formatPrice(holder.current_price)}</td>
             </tr>
         `).join('');
     } catch (error) {
         console.error('Failed to fetch share holders:', error);
-        tableBody.innerHTML = '<tr><td colspan="7">Unable to load share holders.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7">Unable to load allotted shares.</td></tr>';
     }
 }
 

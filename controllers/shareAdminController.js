@@ -37,7 +37,7 @@ exports.getAllStocks = async (req, res) => {
 
 exports.getShareHolders = async (req, res) => {
     try {
-        const query = `
+        const [shareHolders] = await db.promise().query(`
             SELECT
                 u.first_name,
                 u.last_name,
@@ -46,14 +46,12 @@ exports.getShareHolders = async (req, res) => {
                 COALESCE(s.name, p.symbol) AS company_name,
                 p.quantity,
                 p.average_price,
-                s.current_price,
-                (p.quantity * COALESCE(s.current_price, p.average_price)) AS current_value
+                s.current_price
             FROM portfolio p
             JOIN users u ON p.user_id = u.id
             LEFT JOIN stocks s ON p.symbol = s.symbol
             WHERE p.quantity > 0
-            ORDER BY p.symbol ASC, u.first_name ASC, u.last_name ASC`;
-        const [shareHolders] = await db.promise().query(query);
+            ORDER BY u.first_name ASC, u.last_name ASC, p.symbol ASC`);
         res.json(shareHolders);
     } catch (err) {
         console.error("Error fetching share holders:", err);

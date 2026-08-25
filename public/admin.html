@@ -84,6 +84,36 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="my-section admin-table-container">
+            <h3>Share Application Amounts</h3>
+            <div class="admin-stats">
+                <div class="stat-card">
+                    <h4>Total Amount</h4>
+                    <p id="admin-share-total-amount">Rs. 0.00</p>
+                </div>
+                <div class="stat-card" style="border-left-color: #27ae60;">
+                    <h4>Active Amount</h4>
+                    <p id="admin-share-active-amount">Rs. 0.00</p>
+                </div>
+                <div class="stat-card" style="border-left-color: #e67e22;">
+                    <h4>Hold Amount</h4>
+                    <p id="admin-share-hold-amount">Rs. 0.00</p>
+                </div>
+            </div>
+            <h4>Users with Hold Amount</h4>
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Holder Name</th>
+                        <th>Account No.</th>
+                        <th>Hold For</th>
+                        <th>Hold Amount</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-share-holders-body"></tbody>
+            </table>
+        </div>
     </main>
     <script src="js/admin.js"></script>
 </body>

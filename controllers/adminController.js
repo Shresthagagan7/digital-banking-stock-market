@@ -97,6 +97,41 @@ exports.getAllUsers = async (req, res) => {
     }
 };
 
+exports.getShareHolders = async (req, res) => {
+    try {
+        const [[summary]] = await db.promise().query(`
+            SELECT
+                COALESCE(SUM(balance), 0) AS active_amount,
+                COALESCE(SUM(hold_balance), 0) AS hold_amount,
+                COALESCE(SUM(balance + hold_balance), 0) AS total_amount
+            FROM users
+            WHERE role = 'user'`);
+        const [users] = await db.promise().query(`
+            SELECT
+                u.first_name,
+                u.last_name,
+                u.account_number,
+                u.hold_balance,
+                COALESCE(
+                    (
+                        SELECT GROUP_CONCAT(DISTINCT CONCAT('Share Application: ', so.company_name) SEPARATOR ', ')
+                        FROM share_applications sa
+                        JOIN share_offerings so ON sa.offering_id = so.id
+                        WHERE sa.user_id = u.id
+                          AND LOWER(sa.status) NOT IN ('allotted', 'not allotted')
+                    ),
+                    'Other Hold'
+                ) AS hold_reason
+            FROM users u
+            WHERE u.role = 'user' AND u.hold_balance > 0
+            ORDER BY u.hold_balance DESC, u.first_name ASC, u.last_name ASC`);
+        res.json({ summary, users });
+    } catch (err) {
+        console.error("Error fetching admin share holders:", err);
+        res.status(500).json({ message: "Error fetching share holders" });
+    }
+};
+
 exports.getPendingRequests = async (req, res) => {
     try {
         const [rows] = await db.promise().query("SELECT id, first_name, last_name, account_number, phone_number FROM users WHERE status = 'pending' AND role = 'user'");
