@@ -332,6 +332,7 @@ function showShareAdminPanel(panelId) {
         fetchOfferingsForAllotment();
     }
     if (panelId === 'update-price-panel') { fetchStocksForUpdate(); }
+    if (panelId === 'share-holders-panel') { fetchShareHolders(); }
 }
 
 async function checkAdminSessionAndFetchShareData() {
@@ -408,6 +409,38 @@ async function addStock() {
     } else {
         const err = await res.json();
         alert("Failed to add stock: " + err.message);
+    }
+}
+
+async function fetchShareHolders() {
+    const tableBody = document.getElementById('share-holders-body');
+    if (!tableBody) return;
+
+    tableBody.innerHTML = '<tr><td colspan="7">Loading share holders...</td></tr>';
+    try {
+        const res = await fetch('/api/share-admin/share-holders', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch share holders');
+
+        const shareHolders = await res.json();
+        if (shareHolders.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="7">No share holders found.</td></tr>';
+            return;
+        }
+
+        tableBody.innerHTML = shareHolders.map(holder => `
+            <tr>
+                <td>${escapeHTML(`${holder.first_name} ${holder.last_name}`)}</td>
+                <td>${escapeHTML(String(holder.account_number))}</td>
+                <td>${escapeHTML(holder.company_name)}</td>
+                <td>${escapeHTML(holder.symbol)}</td>
+                <td>${Number(holder.quantity).toLocaleString('en-IN')}</td>
+                <td>Rs. ${Number(holder.average_price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td>Rs. ${Number(holder.current_value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Failed to fetch share holders:', error);
+        tableBody.innerHTML = '<tr><td colspan="7">Unable to load share holders.</td></tr>';
     }
 }
 

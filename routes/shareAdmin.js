@@ -17,6 +17,7 @@ router.use(authenticateToken, isShareAdmin);
 
 router.get('/stats', shareAdminController.getShareStats);
 router.get('/stocks', shareAdminController.getAllStocks);
+router.get('/share-holders', shareAdminController.getShareHolders);
 router.post('/stocks', shareAdminController.addStock);
 router.put('/stocks/:id', shareAdminController.updateStockPrice);
 

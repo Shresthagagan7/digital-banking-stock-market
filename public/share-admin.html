@@ -50,7 +50,33 @@
                             <h4>List New Stock</h4>
                             
                         </div>
+                        <!-- View Current Share Holders -->
+                        <div class="option-card" onclick="showShareAdminPanel('share-holders-panel')">
+                            <h4>Share Holders</h4>
+                        </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Panel for Current Share Holders -->
+            <div id="share-holders-panel" class="admin-panel hidden">
+                <button class="back-btn" onclick="showShareAdminPanel('share-admin-main-view')">← Back to Dashboard</button>
+                <div class="my-section admin-table-container">
+                    <h3>Share Holders</h3>
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Holder Name</th>
+                                <th>Account Number</th>
+                                <th>Company</th>
+                                <th>Symbol</th>
+                                <th>Units Held</th>
+                                <th>Average Price</th>
+                                <th>Current Value</th>
+                            </tr>
+                        </thead>
+                        <tbody id="share-holders-body"></tbody>
+                    </table>
                 </div>
             </div>
 
