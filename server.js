@@ -531,6 +531,9 @@ app.post('/api/transfer', authenticateToken, async (req, res) => {
 app.post('/api/buy-share', authenticateToken, userController.buyShare);
 app.post('/api/sell-share', authenticateToken, userController.sellShare);
 app.get('/api/portfolio', authenticateToken, userController.getPortfolio);
+app.get('/api/watchlist', authenticateToken, userController.getWatchlist);
+app.post('/api/watchlist', authenticateToken, userController.addToWatchlist);
+app.delete('/api/watchlist/:symbol', authenticateToken, userController.removeFromWatchlist);
 
 
 app.post('/api/request-loan', authenticateToken, userController.requestLoan);
@@ -704,6 +707,21 @@ async function initializeApp() {
                 );`);
             await db.promise().query("INSERT INTO stock_price_history (symbol, price) SELECT symbol, current_price FROM stocks");
             console.log("Table 'stock_price_history' created successfully.");
+        }
+
+        const [watchlistTable] = await db.promise().query("SHOW TABLES LIKE 'watchlist'");
+        if (watchlistTable.length === 0) {
+            await db.promise().query(`
+                CREATE TABLE \`watchlist\` (
+                  \`id\` INT NOT NULL AUTO_INCREMENT,
+                  \`user_id\` INT NOT NULL,
+                  \`symbol\` VARCHAR(10) NOT NULL,
+                  \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (\`id\`),
+                  UNIQUE KEY \`user_symbol_watchlist_unique\` (\`user_id\`, \`symbol\`),
+                  INDEX \`watchlist_user_idx\` (\`user_id\`)
+                );`);
+            console.log("Table 'watchlist' created successfully.");
         }
 
         // Now register the share admin routes, as the database is ready

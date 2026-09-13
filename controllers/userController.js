@@ -100,6 +100,52 @@ exports.getPortfolio = async (req, res) => {
     res.json(rows);
 };
 
+exports.getWatchlist = async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(`
+            SELECT w.symbol, s.name, s.current_price,
+                   COALESCE((s.current_price - h.first_price) / NULLIF(h.first_price, 0) * 100, 0) AS change_percent
+            FROM watchlist w
+            JOIN stocks s ON w.symbol = s.symbol
+            LEFT JOIN (
+                SELECT symbol, MIN(id) AS first_id, SUBSTRING_INDEX(GROUP_CONCAT(price ORDER BY recorded_at ASC), ',', 1) AS first_price
+                FROM stock_price_history GROUP BY symbol
+            ) h ON h.symbol = s.symbol
+            WHERE w.user_id = ? ORDER BY w.created_at DESC
+        `, [req.user.id]);
+        res.json(rows.map(row => ({ ...row, change: Number(row.change_percent) || 0 })));
+    } catch (err) {
+        console.error('Error fetching watchlist:', err);
+        res.status(500).json({ message: 'Server error fetching watchlist.' });
+    }
+};
+
+exports.addToWatchlist = async (req, res) => {
+    const symbol = String(req.body.symbol || '').trim().toUpperCase();
+    if (!symbol) return res.status(400).json({ message: 'Enter a stock symbol.' });
+    try {
+        const [[stock]] = await db.promise().query('SELECT symbol FROM stocks WHERE symbol = ?', [symbol]);
+        if (!stock) return res.status(404).json({ message: `${symbol} is not listed in the market.` });
+        await db.promise().query('INSERT INTO watchlist (user_id, symbol) VALUES (?, ?)', [req.user.id, symbol]);
+        res.status(201).json({ message: `${symbol} added to your watchlist.` });
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: `${symbol} is already in your watchlist.` });
+        console.error('Error adding to watchlist:', err);
+        res.status(500).json({ message: 'Could not add share to watchlist.' });
+    }
+};
+
+exports.removeFromWatchlist = async (req, res) => {
+    try {
+        const [result] = await db.promise().query('DELETE FROM watchlist WHERE user_id = ? AND symbol = ?', [req.user.id, req.params.symbol.toUpperCase()]);
+        if (!result.affectedRows) return res.status(404).json({ message: 'Share was not in your watchlist.' });
+        res.json({ message: `${req.params.symbol.toUpperCase()} removed from your watchlist.` });
+    } catch (err) {
+        console.error('Error removing from watchlist:', err);
+        res.status(500).json({ message: 'Could not remove share from watchlist.' });
+    }
+};
+
 
 exports.requestLoan = async (req, res) => {
     const { amount, purpose } = req.body;
