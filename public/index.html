@@ -155,12 +155,12 @@
                         <li class="menu-header">SHARE MARKET</li>
                         <li onclick="openMyAsba()">🏦 My ASBA</li>
                         <li onclick="showDashboardPanel('share-market-section')">📁 Portfolio</li>
-                        <li onclick="showDashboardPanel('share-market-section')">🛒 Buy Shares</li>
+                        <li onclick="openMyAsba()">🛒 Buy Shares</li>
                         <li onclick="showDashboardPanel('share-market-section')">💰 Sell Shares</li>
                         <li onclick="openShareResult()">📊 Share Result</li>
-                        <li onclick="alert('Watchlist feature coming soon!')">🔭 Watchlist</li>
+                        <li onclick="showDashboardPanel('watchlist-section')">🔭 Watchlist</li>
                         <li onclick="alert('Order History coming soon!')">⏳ Order History</li>
-                        <li onclick="alert('Market Overview coming soon!')">📉 Market Overview</li>
+                        <li onclick="showDashboardPanel('market-overview-section')">📉 Market Overview</li>
 
                         <li class="menu-header">OTHER</li>
                         <li onclick="alert('Reports feature coming soon!')">🗒️ Reports</li>
@@ -236,7 +236,7 @@
                                     <div class="icon">📈</div>
                                     <p>Portfolio</p>
                                 </div>
-                                <div class="option-card" onclick="showDashboardPanel('share-market-section')">
+                                <div class="option-card" onclick="openMyAsba()">
                                     <div class="icon">🛒</div>
                                     <p>Buy Shares</p>
                                 </div>
@@ -248,7 +248,7 @@
                                     <div class="icon">📊</div>
                                     <p>Share Result</p>
                                 </div>
-                                <div class="option-card" onclick="alert('Watchlist feature coming soon!')">
+                                <div class="option-card" onclick="showDashboardPanel('watchlist-section')">
                                     <div class="icon">🔭</div>
                                     <p>Watchlist</p>
                                 </div>
@@ -256,7 +256,7 @@
                                     <div class="icon">⏳</div>
                                     <p>Order History</p>
                                 </div>
-                                <div class="option-card" onclick="alert('Market Overview coming soon!')">
+                                <div class="option-card" onclick="showDashboardPanel('market-overview-section')">
                                     <div class="icon">📉</div>
                                     <p>Market Overview</p>
                                 </div>
@@ -658,6 +658,42 @@
                         </table>
                     </div>
                     <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6; margin-top: 20px;">Back to Dashboard</button>
+                </div>
+
+                <div id="market-overview-section" class="market-overview-panel hidden">
+                    <div class="market-overview-header">
+                        <div>
+                            <p class="market-eyebrow">NEPSE MARKET</p>
+                            <h2>Market Overview</h2>
+                            <p class="market-subtitle">Track listed shares and their latest price movement.</p>
+                        </div>
+                        <button class="market-refresh-btn" onclick="loadMarketOverview()" title="Refresh market data">↻ Refresh</button>
+                    </div>
+                    <div class="market-summary" id="market-summary"></div>
+                    <div class="market-stock-grid" id="market-stock-grid">
+                        <p class="market-loading">Loading market data...</p>
+                    </div>
+                    <button onclick="showDashboardPanel('main-view')" class="market-back-btn">Back to Dashboard</button>
+                </div>
+
+                <div id="watchlist-section" class="watchlist-panel hidden">
+                    <div class="watchlist-header">
+                        <div>
+                            <p class="market-eyebrow">YOUR SHORTLIST</p>
+                            <h2>My Watchlist</h2>
+                            <p class="market-subtitle">Save shares you want to monitor before making a decision.</p>
+                        </div>
+                        <button class="market-refresh-btn" onclick="loadWatchlist()" title="Refresh watchlist">↻ Refresh</button>
+                    </div>
+                    <form class="watchlist-add-form" onsubmit="addToWatchlist(event)">
+                        <input id="watchlist-symbol" type="text" placeholder="Enter stock symbol (e.g. NICA)" maxlength="10" required style="text-transform: uppercase;">
+                        <button type="submit">+ Add Share</button>
+                    </form>
+                    <div id="watchlist-message" class="watchlist-message" role="status"></div>
+                    <div id="watchlist-grid" class="market-stock-grid">
+                        <p class="market-loading">Loading watchlist...</p>
+                    </div>
+                    <button onclick="showDashboardPanel('main-view')" class="market-back-btn">Back to Dashboard</button>
                 </div>
 
                 <div id="loan-section" class="container hidden" style="max-width: 600px; margin: 20px auto;">

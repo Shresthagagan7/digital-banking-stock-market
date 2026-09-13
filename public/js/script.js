@@ -419,9 +419,134 @@ function showDashboardPanel(panelId) {
     if (panelId === 'share-market-section') {
         loadPortfolio();
     }
+    if (panelId === 'market-overview-section') {
+        loadMarketOverview();
+    }
+    if (panelId === 'watchlist-section') {
+        loadWatchlist();
+    }
     if (panelId === 'my-asba-section') {
         openMyAsba();
     }
+}
+
+async function loadWatchlist() {
+    const grid = document.getElementById('watchlist-grid');
+    if (!grid) return;
+    grid.innerHTML = '<p class="market-loading">Loading watchlist...</p>';
+    try {
+        const response = await fetch('/api/watchlist', { credentials: 'include' });
+        if (!response.ok) throw new Error('Watchlist unavailable');
+        const shares = await response.json();
+        grid.innerHTML = shares.length ? shares.map(renderWatchlistShare).join('') :
+            '<p class="market-loading">Your watchlist is empty. Add a listed share above.</p>';
+    } catch (error) {
+        console.error('Error loading watchlist:', error);
+        grid.innerHTML = '<p class="market-loading">Could not load watchlist. Please try again.</p>';
+    }
+}
+
+function renderWatchlistShare(stock) {
+    const movement = Number(stock.change) >= 0 ? 'up' : 'down';
+    const sign = Number(stock.change) >= 0 ? '+' : '';
+    return `
+        <article class="market-stock-card watchlist-stock-card">
+            <div class="market-stock-topline"><span class="market-symbol">${escapeMarketText(stock.symbol)}</span><span class="market-company">${escapeMarketText(stock.name)}</span></div>
+            <div class="market-price-row"><strong>Rs. ${Number(stock.current_price).toFixed(2)}</strong><span class="market-change ${movement}">${sign}${Number(stock.change).toFixed(2)}%</span></div>
+            <div class="watchlist-stock-footer"><span>Current market price</span><button class="watchlist-remove-btn" onclick="removeFromWatchlist('${escapeMarketText(stock.symbol)}')" title="Remove ${escapeMarketText(stock.symbol)}">Remove</button></div>
+        </article>`;
+}
+
+async function addToWatchlist(event) {
+    event.preventDefault();
+    const input = document.getElementById('watchlist-symbol');
+    const message = document.getElementById('watchlist-message');
+    const symbol = input.value.trim().toUpperCase();
+    if (!symbol) return;
+    try {
+        const response = await fetch('/api/watchlist', {
+            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol })
+        });
+        const result = await response.json();
+        message.textContent = result.message;
+        message.className = `watchlist-message ${response.ok ? 'success' : 'error'}`;
+        if (response.ok) { input.value = ''; loadWatchlist(); }
+    } catch (error) {
+        message.textContent = 'Could not update your watchlist.';
+        message.className = 'watchlist-message error';
+    }
+}
+
+async function removeFromWatchlist(symbol) {
+    try {
+        const response = await fetch(`/api/watchlist/${encodeURIComponent(symbol)}`, { method: 'DELETE', credentials: 'include' });
+        const result = await response.json();
+        const message = document.getElementById('watchlist-message');
+        message.textContent = result.message;
+        message.className = `watchlist-message ${response.ok ? 'success' : 'error'}`;
+        if (response.ok) loadWatchlist();
+    } catch (error) {
+        console.error('Error removing watchlist item:', error);
+    }
+}
+
+async function loadMarketOverview() {
+    const grid = document.getElementById('market-stock-grid');
+    const summary = document.getElementById('market-summary');
+    if (!grid || !summary) return;
+
+    grid.innerHTML = '<p class="market-loading">Loading market data...</p>';
+    try {
+        const response = await fetch('/api/share-admin/market-overview', { credentials: 'include' });
+        if (!response.ok) throw new Error('Market data unavailable');
+        const stocks = await response.json();
+        const rising = stocks.filter(stock => stock.change > 0).length;
+        const falling = stocks.filter(stock => stock.change < 0).length;
+        summary.innerHTML = `
+            <div><strong>${stocks.length}</strong><span>Listed shares</span></div>
+            <div class="summary-up"><strong>${rising}</strong><span>Rising</span></div>
+            <div class="summary-down"><strong>${falling}</strong><span>Falling</span></div>`;
+        grid.innerHTML = stocks.length ? stocks.map(renderMarketStock).join('') :
+            '<p class="market-loading">No listed shares are available yet.</p>';
+    } catch (error) {
+        console.error('Error loading market overview:', error);
+        grid.innerHTML = '<p class="market-loading">Could not load market data. Please try again.</p>';
+    }
+}
+
+function renderMarketStock(stock) {
+    const values = stock.history.map(point => Number(point.price));
+    const movement = stock.change >= 0 ? 'up' : 'down';
+    const chart = createMarketChart(values, movement);
+    const sign = stock.change >= 0 ? '+' : '';
+    return `
+        <article class="market-stock-card">
+            <div class="market-stock-topline"><span class="market-symbol">${escapeMarketText(stock.symbol)}</span><span class="market-company">${escapeMarketText(stock.name)}</span></div>
+            <div class="market-price-row"><strong>Rs. ${Number(stock.current_price).toFixed(2)}</strong><span class="market-change ${movement}">${sign}${Number(stock.change).toFixed(2)}%</span></div>
+            <div class="market-chart" aria-label="${escapeMarketText(stock.symbol)} price trend">${chart}</div>
+            <div class="market-range"><span>Recent trend</span><span>${stock.history.length} updates</span></div>
+        </article>`;
+}
+
+function createMarketChart(values, movement) {
+    const width = 360;
+    const height = 120;
+    const padding = 8;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min || 1;
+    const points = values.map((value, index) => {
+        const x = values.length === 1 ? width / 2 : padding + (index * (width - padding * 2)) / (values.length - 1);
+        const y = height - padding - ((value - min) / range) * (height - padding * 2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const color = movement === 'up' ? '#18a66a' : '#df4d5d';
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="none"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+}
+
+function escapeMarketText(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
 }
 function openCashDeposit() {
     showDashboardPanel('cash-deposit-section');

@@ -11,6 +11,7 @@ const REFRESH_SECRET = process.env.REFRESH_SECRET || 'gagan_refresh_key_456';
 
 // This route is for users to fetch a stock's price from the main app
 router.get('/stocks/price/:symbol', authenticateToken, shareAdminController.getStockPriceBySymbol);
+router.get('/market-overview', authenticateToken, shareAdminController.getMarketOverview);
 
 // All routes below are for share admins only and require share admin authentication
 router.use(authenticateToken, isShareAdmin);

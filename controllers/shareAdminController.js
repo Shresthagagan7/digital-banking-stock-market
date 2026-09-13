@@ -65,7 +65,9 @@ exports.addStock = async (req, res) => {
         return res.status(400).json({ message: "All fields are required." });
     }
     try {
-        await db.promise().query("INSERT INTO stocks (symbol, name, current_price) VALUES (?, ?, ?)", [symbol.toUpperCase(), name, current_price]);
+        const normalizedSymbol = symbol.toUpperCase();
+        await db.promise().query("INSERT INTO stocks (symbol, name, current_price) VALUES (?, ?, ?)", [normalizedSymbol, name, current_price]);
+        await db.promise().query("INSERT INTO stock_price_history (symbol, price) VALUES (?, ?)", [normalizedSymbol, current_price]);
         res.status(201).json({ message: "Stock added successfully." });
     } catch (err) {
         if (err.code === 'ER_DUP_ENTRY') {
@@ -83,7 +85,9 @@ exports.updateStockPrice = async (req, res) => {
         return res.status(400).json({ message: "A valid name and price are required." });
     }
     try {
+        const [[stock]] = await db.promise().query("SELECT symbol FROM stocks WHERE id = ?", [id]);
         await db.promise().query("UPDATE stocks SET name = ?, current_price = ? WHERE id = ?", [name, current_price, id]);
+        if (stock) await db.promise().query("INSERT INTO stock_price_history (symbol, price) VALUES (?, ?)", [stock.symbol, current_price]);
         res.json({ message: "Stock price updated successfully." });
     } catch (err) {
         console.error("Error updating stock price:", err);
@@ -99,6 +103,34 @@ exports.getStockPriceBySymbol = async (req, res) => {
         res.json(stock);
     } catch (err) {
         res.status(500).json({ message: "Server error." });
+    }
+};
+
+exports.getMarketOverview = async (req, res) => {
+    try {
+        const [stocks] = await db.promise().query(
+            "SELECT symbol, name, current_price FROM stocks ORDER BY symbol ASC"
+        );
+        const overview = await Promise.all(stocks.map(async stock => {
+            const [history] = await db.promise().query(
+                "SELECT price, recorded_at FROM (SELECT price, recorded_at FROM stock_price_history WHERE symbol = ? ORDER BY recorded_at DESC LIMIT 30) recent_prices ORDER BY recorded_at ASC",
+                [stock.symbol]
+            );
+            const points = history.length ? history : [{ price: stock.current_price, recorded_at: new Date() }];
+            const firstPrice = Number(points[0].price);
+            const currentPrice = Number(stock.current_price);
+            const change = firstPrice ? ((currentPrice - firstPrice) / firstPrice) * 100 : 0;
+            return {
+                ...stock,
+                current_price: currentPrice,
+                change,
+                history: points.map(point => ({ price: Number(point.price), recorded_at: point.recorded_at }))
+            };
+        }));
+        res.json(overview);
+    } catch (err) {
+        console.error('Error fetching market overview:', err);
+        res.status(500).json({ message: 'Server error fetching market overview.' });
     }
 };
 

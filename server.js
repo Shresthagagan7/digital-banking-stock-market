@@ -691,6 +691,21 @@ async function initializeApp() {
             console.log("Table 'portfolio' created successfully.");
         }
 
+        const [priceHistoryTable] = await db.promise().query("SHOW TABLES LIKE 'stock_price_history'");
+        if (priceHistoryTable.length === 0) {
+            await db.promise().query(`
+                CREATE TABLE \`stock_price_history\` (
+                  \`id\` INT NOT NULL AUTO_INCREMENT,
+                  \`symbol\` VARCHAR(10) NOT NULL,
+                  \`price\` DECIMAL(10, 2) NOT NULL,
+                  \`recorded_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (\`id\`),
+                  INDEX \`stock_history_symbol_time\` (\`symbol\`, \`recorded_at\`)
+                );`);
+            await db.promise().query("INSERT INTO stock_price_history (symbol, price) SELECT symbol, current_price FROM stocks");
+            console.log("Table 'stock_price_history' created successfully.");
+        }
+
         // Now register the share admin routes, as the database is ready
         app.use('/api/share-admin', shareAdminRoutes);
 

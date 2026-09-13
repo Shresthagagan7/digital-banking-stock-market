@@ -89,6 +89,21 @@ body.dark-mode {
     box-shadow: none;
 }
 
+.dark-mode .market-overview-panel,
+.dark-mode .market-stock-card,
+.dark-mode .market-summary > div {
+    background-color: #1e1e1e;
+    border-color: #3a3a3a;
+    color: #e0e0e0;
+}
+.dark-mode .market-symbol,
+.dark-mode .market-price-row strong,
+.dark-mode .market-summary strong { color: #fff; }
+.dark-mode .market-subtitle,
+.dark-mode .market-company,
+.dark-mode .market-range,
+.dark-mode .market-summary span { color: #b5b5b5; }
+
 .dark-mode .option-card:hover,
 .dark-mode button:hover,
 .dark-mode .action-btn:hover {
