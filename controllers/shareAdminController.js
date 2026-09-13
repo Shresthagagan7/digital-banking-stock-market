@@ -1,4 +1,5 @@
 const db = require('../db');
+const { broadcastMarketUpdate } = require('../realtime/marketSocket');
 
 exports.getShareStats = async (req, res) => {
     try {
@@ -88,6 +89,7 @@ exports.updateStockPrice = async (req, res) => {
         const [[stock]] = await db.promise().query("SELECT symbol FROM stocks WHERE id = ?", [id]);
         await db.promise().query("UPDATE stocks SET name = ?, current_price = ? WHERE id = ?", [name, current_price, id]);
         if (stock) await db.promise().query("INSERT INTO stock_price_history (symbol, price) VALUES (?, ?)", [stock.symbol, current_price]);
+        if (stock) broadcastMarketUpdate({ symbol: stock.symbol, name, current_price: Number(current_price) });
         res.json({ message: "Stock price updated successfully." });
     } catch (err) {
         console.error("Error updating stock price:", err);

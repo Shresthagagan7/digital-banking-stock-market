@@ -396,6 +396,23 @@ async function checkLoginStatus() {
 }
 let currentUser = null;
 let isBalanceHidden = false;
+let marketSocket;
+
+function connectMarketSocket() {
+    if (marketSocket && marketSocket.readyState <= 1) return;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    marketSocket = new WebSocket(`${protocol}//${window.location.host}/ws/market`);
+    marketSocket.onmessage = event => {
+        const message = JSON.parse(event.data);
+        if (message.type === 'market:price-updated') {
+            if (!document.getElementById('market-overview-section')?.classList.contains('hidden')) loadMarketOverview();
+            if (!document.getElementById('watchlist-section')?.classList.contains('hidden')) loadWatchlist();
+        }
+    };
+    marketSocket.onclose = () => { marketSocket = null; setTimeout(connectMarketSocket, 5000); };
+}
+
+connectMarketSocket();
 function showDashboardPanel(panelId) {
     const sidebar = document.querySelector('.sidebar');
 

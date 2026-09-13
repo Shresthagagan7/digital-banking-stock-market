@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
 const bodyParser = require('body-parser');
 const db = require('./db');
 const cookieParser = require('cookie-parser');
@@ -13,8 +14,10 @@ const adminRoutes = require('./routes/admin');
 const userController = require('./controllers/userController');
 const shareAdminRoutes = require('./routes/shareAdmin');
 const { authenticateToken } = require('./middleware/auth');
+const { initializeMarketSocket } = require('./realtime/marketSocket');
 
 const app = express();
+const server = http.createServer(app);
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(express.static('public'));
@@ -752,7 +755,8 @@ async function initializeApp() {
         // Now register the share admin routes, as the database is ready
         app.use('/api/share-admin', shareAdminRoutes);
 
-        app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+        initializeMarketSocket(server);
+        server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
     } catch (error) {
         console.error("Failed to initialize application:", error);
         process.exit(1); // Exit if critical initialization fails
