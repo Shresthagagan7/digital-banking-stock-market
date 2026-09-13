@@ -1028,6 +1028,31 @@ async function viewTransactionHistory() {
     renderTransactionHistory('history-transaction-rows', transactions, currentUser.balance);
 }
 
+async function viewOrderHistory() {
+    if (!currentUser) return;
+    showDashboardPanel('order-history-section');
+    const rows = document.getElementById('order-history-rows');
+    rows.innerHTML = '<tr><td colspan="7" class="market-loading">Loading orders...</td></tr>';
+    try {
+        const response = await fetch('/api/order-history', { credentials: 'include' });
+        if (!response.ok) throw new Error('Order history unavailable');
+        const orders = await response.json();
+        rows.innerHTML = orders.length ? orders.map(order => `
+            <tr>
+                <td>${new Date(order.transaction_date).toLocaleString()}</td>
+                <td><span class="order-type ${order.order_type.toLowerCase()}">${order.order_type}</span></td>
+                <td><strong>${escapeMarketText(order.symbol)}</strong></td>
+                <td>${order.quantity}</td>
+                <td>Rs. ${Number(order.price).toFixed(2)}</td>
+                <td>Rs. ${Number(order.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td><span class="order-status">Completed</span></td>
+            </tr>`).join('') : '<tr><td colspan="7" class="market-loading">No share orders found.</td></tr>';
+    } catch (error) {
+        console.error('Error loading order history:', error);
+        rows.innerHTML = '<tr><td colspan="7" class="market-loading">Could not load order history. Please try again.</td></tr>';
+    }
+}
+
 function openSendMoney() {
     showDashboardPanel('send-money-section');
     if (currentUser) { 

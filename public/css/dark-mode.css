@@ -105,6 +105,8 @@ body.dark-mode {
 .dark-mode .market-range,
 .dark-mode .market-summary span { color: #b5b5b5; }
 .dark-mode .watchlist-add-form input { background: #292929; color: #fff; border-color: #444; }
+.dark-mode .order-history-table th { background: #292929; color: #ddd; }
+.dark-mode .order-history-table td { border-color: #3a3a3a; color: #e0e0e0; }
 
 .dark-mode .option-card:hover,
 .dark-mode button:hover,

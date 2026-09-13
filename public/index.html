@@ -159,7 +159,7 @@
                         <li onclick="showDashboardPanel('share-market-section')">💰 Sell Shares</li>
                         <li onclick="openShareResult()">📊 Share Result</li>
                         <li onclick="showDashboardPanel('watchlist-section')">🔭 Watchlist</li>
-                        <li onclick="alert('Order History coming soon!')">⏳ Order History</li>
+                        <li onclick="viewOrderHistory()">⏳ Order History</li>
                         <li onclick="showDashboardPanel('market-overview-section')">📉 Market Overview</li>
 
                         <li class="menu-header">OTHER</li>
@@ -252,7 +252,7 @@
                                     <div class="icon">🔭</div>
                                     <p>Watchlist</p>
                                 </div>
-                                <div class="option-card" onclick="alert('Order History coming soon!')">
+                                <div class="option-card" onclick="viewOrderHistory()">
                                     <div class="icon">⏳</div>
                                     <p>Order History</p>
                                 </div>
@@ -433,6 +433,24 @@
                         <tbody id="history-transaction-rows"></tbody>
                     </table>
                     <button onclick="showDashboardPanel('main-view')" style="margin-top: 30px; background: #95a5a6; width: 200px;">Back to Dashboard</button>
+                </div>
+
+                <div id="order-history-section" class="container hidden order-history-panel" style="max-width: 1050px; text-align: left; padding: 30px;">
+                    <div class="order-history-heading">
+                        <div>
+                            <p class="market-eyebrow">SHARE MARKET</p>
+                            <h2>Order History</h2>
+                            <p class="market-subtitle">Your completed share buy and sell orders.</p>
+                        </div>
+                        <button class="market-refresh-btn" onclick="viewOrderHistory()" title="Refresh order history">↻ Refresh</button>
+                    </div>
+                    <div class="order-history-table-wrap">
+                        <table class="order-history-table">
+                            <thead><tr><th>Date</th><th>Type</th><th>Symbol</th><th>Quantity</th><th>Price</th><th>Total Amount</th><th>Status</th></tr></thead>
+                            <tbody id="order-history-rows"><tr><td colspan="7" class="market-loading">Loading orders...</td></tr></tbody>
+                        </table>
+                    </div>
+                    <button onclick="showDashboardPanel('main-view')" class="market-back-btn">Back to Dashboard</button>
                 </div>
 
                 <div id="change-password-section" class="container hidden">

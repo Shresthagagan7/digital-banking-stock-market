@@ -604,6 +604,31 @@ app.get('/api/transactions/:userId', (req, res) => {
     });
 });
 
+app.get('/api/order-history', authenticateToken, async (req, res) => {
+    try {
+        const [transactions] = await db.promise().query(
+            "SELECT transaction_date, type, amount, description FROM transactions WHERE user_id = ? AND (description LIKE 'Share Purchase:%' OR description LIKE 'Share Sell:%') ORDER BY transaction_date DESC",
+            [req.user.id]
+        );
+        const orders = transactions.map(transaction => {
+            const match = transaction.description.match(/^Share (Purchase|Sell): (\d+) units of ([A-Z0-9._-]+) @ Rs\. ([\d.]+)/i);
+            if (!match) return null;
+            return {
+                transaction_date: transaction.transaction_date,
+                order_type: match[1].toLowerCase() === 'purchase' ? 'Buy' : 'Sell',
+                quantity: Number(match[2]),
+                symbol: match[3].toUpperCase(),
+                price: Number(match[4]),
+                amount: Number(transaction.amount)
+            };
+        }).filter(Boolean);
+        res.json(orders);
+    } catch (err) {
+        console.error('Error fetching order history:', err);
+        res.status(500).json({ message: 'Server error fetching order history.' });
+    }
+});
+
 app.get('/api/dashboard-data/:userId', async (req, res) => {
     try {
         const [notifications] = await db.promise().query("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 5", [req.params.userId]);
