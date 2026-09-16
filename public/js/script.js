@@ -51,8 +51,8 @@ async function processTrade(action) {
     if (isNaN(quantity) || quantity <= 0) return alert("Please enter valid units");
 
     const totalCost = quantity * price;
-    if (action === 'buy' && totalCost > currentUser.balance) {
-        return alert("Insufficient balance to buy these shares.");
+    if (action === 'buy' && totalCost > (Number(currentUser.trading_balance) || 0)) {
+        return alert("Insufficient trading balance. Add funds to your trading wallet first.");
     }
 
     const endpoint = action === 'buy' ? '/api/buy-share' : '/api/sell-share';
@@ -69,8 +69,9 @@ async function processTrade(action) {
     alert(result.message);
 
     if (res.ok) {
-            
+        await refreshCurrentUser();
         updateUI();
+        loadTradingWallet();
         loadPortfolio(); 
         document.getElementById('trade-qty').value = "";
     }
@@ -435,6 +436,7 @@ function showDashboardPanel(panelId) {
     // Special load functions for specific panels
     if (panelId === 'share-market-section') {
         loadPortfolio();
+        loadTradingWallet();
     }
     if (panelId === 'market-overview-section') {
         loadMarketOverview();
@@ -922,7 +924,7 @@ async function viewMyAccounts() {
     const balance = parseFloat(currentUser.balance) || 0;
     const holdAmount = parseFloat(currentUser.hold_balance) || 0;
     const ledgerBalance = balance + holdAmount;
-    const tradingBalance = 0; 
+    const tradingBalance = Number(currentUser.trading_balance) || 0;
 
     // Top Summary
     document.getElementById('top-avail-bal').innerText = `Rs. ${balance.toLocaleString()}`;
@@ -999,6 +1001,177 @@ async function viewMyAccounts() {
     document.getElementById('info-holder').innerText = fullName;
     document.getElementById('info-number').innerText = currentUser.account_number;
     document.getElementById('info-date').innerText = currentUser.dob || '2025-01-01';
+}
+
+async function refreshCurrentUser() {
+    const response = await fetch('/api/check-session', { credentials: 'include' });
+    if (!response.ok) return false;
+    const data = await response.json();
+    currentUser = data.user;
+    return true;
+}
+
+async function loadTradingWallet() {
+    if (!currentUser) return;
+    const balanceElement = document.getElementById('market-trading-balance');
+    try {
+        const response = await fetch('/api/trading-wallet', { credentials: 'include' });
+        if (!response.ok) throw new Error('Wallet unavailable');
+        const { tradingBalance } = await response.json();
+        currentUser.trading_balance = Number(tradingBalance) || 0;
+        if (balanceElement) balanceElement.textContent = `Rs. ${currentUser.trading_balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } catch (error) {
+        console.error('Trading wallet load error:', error);
+        if (balanceElement) balanceElement.textContent = 'Unavailable';
+    }
+}
+
+async function transferTradingFunds(direction) {
+    const input = document.getElementById('trading-transfer-amount');
+    const amount = Number(input.value);
+    if (!Number.isFinite(amount) || amount <= 0) return alert('Enter a valid amount.');
+    const response = await fetch('/api/trading-wallet/transfer', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, direction })
+    });
+    const result = await response.json();
+    alert(result.message);
+    if (!response.ok) return;
+    currentUser.balance = Number(result.bankBalance);
+    currentUser.trading_balance = Number(result.tradingBalance);
+    input.value = '';
+    updateUI();
+    loadTradingWallet();
+}
+
+let statementTransactions = [];
+let statementBalance = 0;
+
+function statementIsCredit(transaction) {
+    const description = String(transaction.description || '').toLowerCase();
+    return transaction.type === 'credit' || transaction.type === 'interest' || description.includes('deposit');
+}
+
+function formatStatementMoney(value) {
+    return `Rs. ${(Number(value) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function escapeStatementHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+}
+
+async function openStatements() {
+    if (!currentUser) return;
+    await viewMyAccounts();
+    switchAccountTab('statements-tab');
+
+    document.getElementById('stmt-account-info').textContent = `${currentUser.first_name} ${currentUser.last_name} · A/C ${currentUser.account_number} · ${currentUser.branch || 'Kathmandu Branch'}`;
+    statementBalance = Number(currentUser.balance) || 0;
+    setStatementAllTime();
+
+    try {
+        const response = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('Could not load transactions');
+        statementTransactions = await response.json();
+        applyStatementFilters();
+    } catch (error) {
+        console.error('Statement load error:', error);
+        document.getElementById('statement-transaction-rows').innerHTML = '<tr><td colspan="7" class="statement-empty">Unable to load your statement. Please try again.</td></tr>';
+    }
+}
+
+function setStatementAllTime() {
+    document.getElementById('stmt-from').value = '';
+    document.getElementById('stmt-to').value = '';
+    document.getElementById('stmt-type').value = 'all';
+    document.getElementById('stmt-search').value = '';
+    if (statementTransactions.length) applyStatementFilters();
+}
+
+function setStatementPeriod(days) {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(today.getDate() - (days - 1));
+    document.getElementById('stmt-from').value = from.toISOString().slice(0, 10);
+    document.getElementById('stmt-to').value = today.toISOString().slice(0, 10);
+    if (statementTransactions.length) applyStatementFilters();
+}
+
+function setStatementMonth() {
+    const today = new Date();
+    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('stmt-from').value = first.toISOString().slice(0, 10);
+    document.getElementById('stmt-to').value = today.toISOString().slice(0, 10);
+    if (statementTransactions.length) applyStatementFilters();
+}
+
+function applyStatementFilters() {
+    const from = document.getElementById('stmt-from').value;
+    const to = document.getElementById('stmt-to').value;
+    const type = document.getElementById('stmt-type').value;
+    const search = document.getElementById('stmt-search').value.trim().toLowerCase();
+    const start = from ? new Date(`${from}T00:00:00`) : null;
+    const end = to ? new Date(`${to}T23:59:59.999`) : null;
+    const rows = document.getElementById('statement-transaction-rows');
+
+    if (start && end && start > end) {
+        rows.innerHTML = '<tr><td colspan="7" class="statement-empty">The “from” date must be before the “to” date.</td></tr>';
+        return;
+    }
+
+    let runningBalance = statementBalance;
+    const enriched = statementTransactions.map(transaction => {
+        const amount = Number(transaction.amount) || 0;
+        const credit = statementIsCredit(transaction);
+        const balanceAfter = runningBalance;
+        runningBalance += credit ? -amount : amount;
+        return { ...transaction, amount, credit, balanceAfter };
+    });
+    const filtered = enriched.filter(transaction => {
+        const date = new Date(transaction.transaction_date);
+        const matchesDate = (!start || date >= start) && (!end || date <= end);
+        const matchesType = type === 'all' || (type === 'credit' ? transaction.credit : !transaction.credit);
+        const haystack = `${transaction.description || ''} ${transaction.id || ''}`.toLowerCase();
+        return matchesDate && matchesType && (!search || haystack.includes(search));
+    });
+
+    const credits = filtered.filter(t => t.credit).reduce((sum, t) => sum + t.amount, 0);
+    const debits = filtered.filter(t => !t.credit).reduce((sum, t) => sum + t.amount, 0);
+    const oldest = filtered[filtered.length - 1];
+    const opening = oldest ? oldest.balanceAfter + (oldest.credit ? -oldest.amount : oldest.amount) : 0;
+    const closing = filtered.length ? filtered[0].balanceAfter : 0;
+    document.getElementById('stmt-opening-balance').textContent = formatStatementMoney(opening);
+    document.getElementById('stmt-total-credit').textContent = formatStatementMoney(credits);
+    document.getElementById('stmt-total-debit').textContent = formatStatementMoney(debits);
+    document.getElementById('stmt-closing-balance').textContent = formatStatementMoney(closing);
+    document.getElementById('stmt-transaction-count').textContent = filtered.length;
+    document.getElementById('stmt-period-label').textContent = from && to ? `${from} to ${to}` : 'All transactions';
+    document.getElementById('stmt-generated-at').textContent = `Generated on ${new Date().toLocaleString()}`;
+
+    if (!filtered.length) {
+        rows.innerHTML = '<tr><td colspan="7" class="statement-empty">No transactions found for this selection.</td></tr>';
+        return;
+    }
+    rows.innerHTML = filtered.map(transaction => {
+        const date = new Date(transaction.transaction_date).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+        const reference = transaction.id ? `TXN-${transaction.id}` : '—';
+        return `<tr><td>${date}</td><td>${escapeStatementHtml(reference)}</td><td>${escapeStatementHtml(transaction.description || 'Transaction')}</td><td class="statement-debit">${transaction.credit ? '—' : formatStatementMoney(transaction.amount)}</td><td class="statement-credit">${transaction.credit ? formatStatementMoney(transaction.amount) : '—'}</td><td>${formatStatementMoney(transaction.balanceAfter)}</td><td><span class="statement-status">Success</span></td></tr>`;
+    }).join('');
+}
+
+function exportStatementCsv() {
+    const table = document.querySelector('.statement-table');
+    const csv = Array.from(table.rows).map(row => Array.from(row.cells).map(cell => `"${cell.innerText.replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `account-statement-${document.getElementById('stmt-from').value || 'all'}-to-${document.getElementById('stmt-to').value || 'all'}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+function printStatement() {
+    window.print();
 }
 
 async function renderTransactionHistory(tableBodyId, transactions, currentBalance) {

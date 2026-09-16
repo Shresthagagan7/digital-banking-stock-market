@@ -675,3 +675,61 @@ body.dark-mode #portfolio-table td {
     background-color: #fdecea !important; /* Light red */
     color: #999;
 }
+
+.statement-page { color: #263548; }
+.statement-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.statement-heading h3 { margin: 0 0 6px; color: #2c3e50; }
+.statement-heading p, .statement-period { margin: 0; color: #64748b; font-size: 14px; }
+.statement-filters { background: #fff; padding: 18px; border-radius: 10px; margin-bottom: 18px; border: 1px solid #e5e7eb; }
+.statement-shortcuts, .statement-filter-fields, .statement-export-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.statement-shortcuts { margin-bottom: 14px; }
+.statement-shortcuts button { width: auto; padding: 8px 12px; background: #eef2f7; color: #34495e; font-size: 13px; }
+.statement-filter-fields label { display: grid; gap: 5px; color: #475569; font-size: 13px; font-weight: 600; }
+.statement-filter-fields input, .statement-filter-fields select { width: auto; min-width: 145px; margin: 0; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; }
+.statement-filter-fields input[type="search"] { min-width: 220px; }
+.statement-filter-fields button, .statement-export-actions button { width: auto; padding: 10px 16px; }
+.statement-summary { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.statement-summary > div { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 13px; }
+.statement-summary span { display: block; color: #64748b; font-size: 12px; margin-bottom: 5px; }
+.statement-summary strong { color: #1e293b; font-size: 15px; }
+.statement-table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+.statement-table { width: 100%; min-width: 830px; border-collapse: collapse; font-size: 13px; }
+.statement-table th { background: #f1f5f9; color: #475569; text-align: left; white-space: nowrap; }
+.statement-table th, .statement-table td { padding: 11px 12px; border-bottom: 1px solid #e5e7eb; }
+.statement-table tbody tr:last-child td { border-bottom: 0; }
+.statement-table tbody tr:hover { background: #f8fafc; }
+.statement-table .statement-credit { color: #15803d; font-weight: 600; }
+.statement-table .statement-debit { color: #dc2626; font-weight: 600; background: transparent; padding: 11px 12px; border-radius: 0; }
+.statement-status { color: #15803d; background: #dcfce7; border-radius: 999px; padding: 3px 8px; font-size: 12px; font-weight: 600; }
+.statement-empty { padding: 28px !important; color: #64748b; text-align: center; }
+.statement-generated { color: #64748b; font-size: 12px; margin: 14px 0 0; }
+.statement-export-actions { margin-top: 18px; }
+.statement-pdf { background: #dc2626; }
+.statement-csv { background: #15803d; }
+
+.trading-wallet-card { background: #f5f3ff; border: 1px solid #ddd6fe; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 16px; margin: 0 0 20px; }
+.trading-wallet-card > div:first-child { display: flex; justify-content: space-between; align-items: center; color: #5b21b6; }
+.trading-wallet-card strong { font-size: 20px; color: #4c1d95; }
+.trading-wallet-actions { display: flex; gap: 8px; margin: 13px 0 8px; }
+.trading-wallet-actions input { margin: 0; flex: 1; min-width: 0; }
+.trading-wallet-actions button { width: auto; padding: 10px 12px; background: #7c3aed; }
+.trading-wallet-actions .trading-withdraw { background: #475569; }
+.trading-wallet-card small { color: #64748b; }
+
+@media (max-width: 800px) {
+    .statement-heading { display: block; }
+    .statement-period { margin-top: 8px; }
+    .statement-summary { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+    .statement-filter-fields > * { width: 100%; }
+    .statement-filter-fields input, .statement-filter-fields select { width: 100%; box-sizing: border-box; }
+}
+
+@media print {
+    body * { visibility: hidden; }
+    #statement-print-area, #statement-print-area * { visibility: visible; }
+    #statement-print-area { position: absolute; inset: 0; width: 100%; }
+    .statement-filters, .statement-export-actions { display: none !important; }
+    .statement-table { min-width: 0; font-size: 9px; }
+    .statement-table th, .statement-table td { padding: 6px; }
+    .statement-summary { gap: 6px; }
+}

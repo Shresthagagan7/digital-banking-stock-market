@@ -4,15 +4,20 @@ const bcrypt = require('bcryptjs');
 exports.buyShare = async (req, res) => {
     const userId = req.user.id;
     const { symbol, quantity, price } = req.body;
-    const totalCost = quantity * price;
+    const units = Number(quantity);
+    const unitPrice = Number(price);
+    const totalCost = units * unitPrice;
+    if (!Number.isInteger(units) || units <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) {
+        return res.status(400).json({ message: 'Enter a valid quantity and price.' });
+    }
 
     const connection = await db.promise().getConnection();
     try {
         await connection.beginTransaction();
 
-        const [user] = await connection.query("SELECT balance FROM users WHERE id = ?", [userId]);
-        if (!user.length || user[0].balance < totalCost) {
-            throw new Error("Insufficient bank balance to buy shares.");
+        const [user] = await connection.query("SELECT trading_balance FROM users WHERE id = ? FOR UPDATE", [userId]);
+        if (!user.length || Number(user[0].trading_balance) < totalCost) {
+            throw new Error("Insufficient trading balance to buy shares. Add funds to your trading wallet first.");
         }
 
         // Check if the stock exists in the stocks table before allowing a purchase
@@ -21,23 +26,23 @@ exports.buyShare = async (req, res) => {
             throw new Error(`The stock with symbol '${symbol}' is not listed in the market. Cannot purchase.`);
         }
 
-        await connection.query("UPDATE users SET balance = balance - ? WHERE id = ?", [totalCost, userId]);
+        await connection.query("UPDATE users SET trading_balance = trading_balance - ? WHERE id = ?", [totalCost, userId]);
 
         const [existing] = await connection.query("SELECT * FROM portfolio WHERE user_id = ? AND symbol = ?", [userId, symbol]);
         
         if (existing.length > 0) {
             const oldQty = existing[0].quantity;
             const oldAvg = existing[0].average_price;
-            const newQty = oldQty + parseInt(quantity);
+            const newQty = oldQty + units;
             const newAvg = ((oldQty * oldAvg) + totalCost) / newQty;
 
             await connection.query("UPDATE portfolio SET quantity = ?, average_price = ? WHERE id = ?", [newQty, newAvg, existing[0].id]);
         } else {
-            await connection.query("INSERT INTO portfolio (user_id, symbol, quantity, average_price) VALUES (?, ?, ?, ?)", [userId, symbol, quantity, price]);
+            await connection.query("INSERT INTO portfolio (user_id, symbol, quantity, average_price) VALUES (?, ?, ?, ?)", [userId, symbol, units, unitPrice]);
         }
 
         await connection.query("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'debit', ?, ?)", 
-            [userId, totalCost, `Share Purchase: ${quantity} units of ${symbol} @ Rs. ${price}`]);
+            [userId, totalCost, `Share Purchase: ${units} units of ${symbol} @ Rs. ${unitPrice}`]);
 
         await connection.commit();
         res.json({ message: "Share purchase successful!" });
@@ -53,20 +58,25 @@ exports.buyShare = async (req, res) => {
 exports.sellShare = async (req, res) => {
     const userId = req.user.id;
     const { symbol, quantity, price } = req.body; 
-    const totalEarnings = quantity * price;
+    const units = Number(quantity);
+    const unitPrice = Number(price);
+    const totalEarnings = units * unitPrice;
+    if (!Number.isInteger(units) || units <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) {
+        return res.status(400).json({ message: 'Enter a valid quantity and price.' });
+    }
 
     const connection = await db.promise().getConnection();
     try {
         await connection.beginTransaction();
 
         const [existing] = await connection.query("SELECT * FROM portfolio WHERE user_id = ? AND symbol = ?", [userId, symbol]);
-        if (!existing.length || existing[0].quantity < quantity) {
+        if (!existing.length || existing[0].quantity < units) {
             throw new Error("You do not have enough units to sell.");
         }
 
-        await connection.query("UPDATE users SET balance = balance + ? WHERE id = ?", [totalEarnings, userId]);
+        await connection.query("UPDATE users SET trading_balance = trading_balance + ? WHERE id = ?", [totalEarnings, userId]);
 
-        const newQty = existing[0].quantity - parseInt(quantity);
+        const newQty = existing[0].quantity - units;
         if (newQty === 0) {
             await connection.query("DELETE FROM portfolio WHERE id = ?", [existing[0].id]);
         } else {
@@ -74,7 +84,7 @@ exports.sellShare = async (req, res) => {
         }
 
         await connection.query("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'credit', ?, ?)", 
-            [userId, totalEarnings, `Share Sell: ${quantity} units of ${symbol} @ Rs. ${price}`]);
+            [userId, totalEarnings, `Share Sell: ${units} units of ${symbol} @ Rs. ${unitPrice}`]);
 
         await connection.commit();
         res.json({ message: "Share sold successfully!" });

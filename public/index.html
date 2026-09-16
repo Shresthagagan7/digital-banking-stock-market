@@ -150,7 +150,7 @@
                         <li onclick="openCashDeposit()">💵 Deposits</li>
                         <li onclick="alert('Withdrawals feature coming soon!')">🏧 Withdrawals</li>
                         <li onclick="viewTransactionHistory()">📜 Transaction History</li>
-                        <li onclick="alert('Statements generation coming soon!')">📄 Statements</li>
+                        <li onclick="openStatements()">📄 Statements</li>
 
                         <li class="menu-header">SHARE MARKET</li>
                         <li onclick="openMyAsba()">🏦 My ASBA</li>
@@ -218,7 +218,7 @@
                                     <div class="icon">📜</div>
                                     <p>Transaction History</p>
                                 </div>
-                                <div class="option-card" onclick="alert('Statements generation coming soon!')">
+                                <div class="option-card" onclick="openStatements()">
                                     <div class="icon">📄</div>
                                     <p>Statements</p>
                                 </div>
@@ -387,17 +387,44 @@
 
                     <!-- Statements Tab Content -->
                     <div id="statements-tab" class="account-tab-content hidden">
-                        <div class="statement-filters" style="background: #fff; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #eee;">
-                            <h3>Account Statement</h3>
-                            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 20px;">
-                                <input type="date" id="stmt-from">
-                                <input type="date" id="stmt-to">
-                                <button style="background: #34495e; width: auto; padding: 0 20px;">Filter</button>
+                        <div id="statement-print-area" class="statement-page">
+                            <div class="statement-heading">
+                                <div><h3>Account Statement</h3><p id="stmt-account-info">Your account activity</p></div>
+                                <div class="statement-period">Period: <strong id="stmt-period-label">—</strong></div>
                             </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button onclick="alert('PDF Download initiated')" style="background: #e74c3c; width: auto; padding: 10px 15px;">Download PDF</button>
-                                <button onclick="alert('Excel Export initiated')" style="background: #27ae60; width: auto; padding: 10px 15px;">Export Excel</button>
+                            <div class="statement-filters">
+                                <div class="statement-shortcuts">
+                                    <button type="button" onclick="setStatementAllTime()">All time</button>
+                                    <button type="button" onclick="setStatementPeriod(7)">Last 7 days</button>
+                                    <button type="button" onclick="setStatementPeriod(30)">Last 30 days</button>
+                                    <button type="button" onclick="setStatementMonth()">This month</button>
+                                </div>
+                                <div class="statement-filter-fields">
+                                    <label>From <input type="date" id="stmt-from"></label>
+                                    <label>To <input type="date" id="stmt-to"></label>
+                                    <select id="stmt-type" aria-label="Transaction type"><option value="all">All types</option><option value="credit">Credits only</option><option value="debit">Debits only</option></select>
+                                    <input type="search" id="stmt-search" placeholder="Search description or reference">
+                                    <button type="button" onclick="applyStatementFilters()">Apply filter</button>
+                                </div>
                             </div>
+                            <div class="statement-summary">
+                                <div><span>Opening balance</span><strong id="stmt-opening-balance">Rs. 0.00</strong></div>
+                                <div><span>Total credits</span><strong id="stmt-total-credit" class="statement-credit">Rs. 0.00</strong></div>
+                                <div><span>Total debits</span><strong id="stmt-total-debit" class="statement-debit">Rs. 0.00</strong></div>
+                                <div><span>Closing balance</span><strong id="stmt-closing-balance">Rs. 0.00</strong></div>
+                                <div><span>Transactions</span><strong id="stmt-transaction-count">0</strong></div>
+                            </div>
+                            <div class="statement-table-wrap">
+                                <table class="statement-table">
+                                    <thead><tr><th>Date & time</th><th>Reference</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Status</th></tr></thead>
+                                    <tbody id="statement-transaction-rows"></tbody>
+                                </table>
+                            </div>
+                            <p id="stmt-generated-at" class="statement-generated"></p>
+                        </div>
+                        <div class="statement-export-actions">
+                            <button type="button" onclick="printStatement()" class="statement-pdf">Print / Save PDF</button>
+                            <button type="button" onclick="exportStatementCsv()" class="statement-csv">Export CSV</button>
                         </div>
                     </div>
 
@@ -644,6 +671,15 @@
             
                 <div id="share-market-section" class="container hidden" style="max-width: 600px;">
                     <h2>NEPSE Share Market</h2>
+                    <div class="trading-wallet-card">
+                        <div><span>Trading Wallet Balance</span><strong id="market-trading-balance">Rs. 0.00</strong></div>
+                        <div class="trading-wallet-actions">
+                            <input type="number" id="trading-transfer-amount" min="1" step="0.01" placeholder="Amount">
+                            <button type="button" onclick="transferTradingFunds('to_trading')">Add funds</button>
+                            <button type="button" onclick="transferTradingFunds('to_bank')" class="trading-withdraw">Return to bank</button>
+                        </div>
+                        <small>Move funds between your bank account and trading wallet before buying shares.</small>
+                    </div>
                     <div class="market-controls" style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <input type="text" id="share-symbol" placeholder="Enter Symbol (e.g. NICA, NABIL)" style="text-transform: uppercase;">
                         <button onclick="fetchSharePrice()" style="width: auto; padding: 0 15px;">Check Price</button>

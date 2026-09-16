@@ -39,7 +39,7 @@ app.get('/share-admin-login', (req, res) => {
 
 app.get('/api/check-session', authenticateToken, async (req, res) => {
     try {
-        const [users] = await db.promise().query("SELECT id, first_name, last_name, account_number, balance, hold_balance, role, status, profile_pic, branch FROM users WHERE id = ?", [req.user.id]);
+        const [users] = await db.promise().query("SELECT id, first_name, last_name, account_number, balance, hold_balance, trading_balance, role, status, profile_pic, branch FROM users WHERE id = ?", [req.user.id]);
         if (users.length === 0) {
             return res.status(404).json({ message: "User not found." });
         }
@@ -533,6 +533,48 @@ app.post('/api/transfer', authenticateToken, async (req, res) => {
 
 app.post('/api/buy-share', authenticateToken, userController.buyShare);
 app.post('/api/sell-share', authenticateToken, userController.sellShare);
+app.get('/api/trading-wallet', authenticateToken, async (req, res) => {
+    try {
+        const [[user]] = await db.promise().query('SELECT trading_balance FROM users WHERE id = ?', [req.user.id]);
+        if (!user) return res.status(404).json({ message: 'User not found.' });
+        res.json({ tradingBalance: Number(user.trading_balance) || 0 });
+    } catch (err) {
+        console.error('Trading wallet fetch error:', err);
+        res.status(500).json({ message: 'Could not load trading wallet.' });
+    }
+});
+app.post('/api/trading-wallet/transfer', authenticateToken, async (req, res) => {
+    const amount = Number(req.body.amount);
+    const direction = req.body.direction;
+    if (!Number.isFinite(amount) || amount <= 0 || !['to_trading', 'to_bank'].includes(direction)) {
+        return res.status(400).json({ message: 'Enter a valid transfer amount.' });
+    }
+    const connection = await db.promise().getConnection();
+    try {
+        await connection.beginTransaction();
+        const [[user]] = await connection.query('SELECT balance, trading_balance FROM users WHERE id = ? FOR UPDATE', [req.user.id]);
+        if (!user) throw new Error('User not found.');
+        const isFunding = direction === 'to_trading';
+        const available = Number(isFunding ? user.balance : user.trading_balance);
+        if (available < amount) throw new Error(isFunding ? 'Insufficient bank balance.' : 'Insufficient trading balance.');
+        await connection.query(
+            'UPDATE users SET balance = balance + ?, trading_balance = trading_balance + ? WHERE id = ?',
+            [isFunding ? -amount : amount, isFunding ? amount : -amount, req.user.id]
+        );
+        await connection.query('INSERT INTO transactions (user_id, type, amount, description) VALUES (?, ?, ?, ?)', [
+            req.user.id, isFunding ? 'debit' : 'credit', amount,
+            isFunding ? 'Transfer to Trading Wallet' : 'Transfer from Trading Wallet'
+        ]);
+        await connection.commit();
+        const [[updated]] = await connection.query('SELECT balance, trading_balance FROM users WHERE id = ?', [req.user.id]);
+        res.json({ message: isFunding ? 'Funds added to trading wallet.' : 'Funds returned to bank account.', bankBalance: Number(updated.balance), tradingBalance: Number(updated.trading_balance) });
+    } catch (err) {
+        await connection.rollback();
+        res.status(400).json({ message: err.message || 'Trading wallet transfer failed.' });
+    } finally {
+        connection.release();
+    }
+});
 app.get('/api/portfolio', authenticateToken, userController.getPortfolio);
 app.get('/api/watchlist', authenticateToken, userController.getWatchlist);
 app.post('/api/watchlist', authenticateToken, userController.addToWatchlist);
@@ -600,8 +642,11 @@ app.get('/api/user-by-account/:accountNumber', authenticateToken, async (req, re
     }
 });
 
-app.get('/api/transactions/:userId', (req, res) => {
-    db.query("SELECT * FROM transactions WHERE user_id = ? ORDER BY transaction_date DESC", [req.params.userId], (err, results) => {
+app.get('/api/transactions/:userId', authenticateToken, (req, res) => {
+    if (Number(req.params.userId) !== Number(req.user.id)) {
+        return res.status(403).json({ message: 'You can only view your own transactions.' });
+    }
+    db.query("SELECT * FROM transactions WHERE user_id = ? ORDER BY transaction_date DESC", [req.user.id], (err, results) => {
         if (err) return res.status(500).send(err);
         res.json(results);
     });
@@ -698,6 +743,11 @@ const PORT = process.env.PORT || 3000;
 
 async function initializeApp() {
     try {
+        const [tradingBalanceColumn] = await db.promise().query("SHOW COLUMNS FROM `users` LIKE 'trading_balance'");
+        if (tradingBalanceColumn.length === 0) {
+            await db.promise().query("ALTER TABLE `users` ADD COLUMN `trading_balance` DECIMAL(15,2) NOT NULL DEFAULT 0.00 AFTER `balance`");
+            console.log("Column 'trading_balance' added to users.");
+        }
         // Ensure the database schema is up-to-date before starting the server and registering routes
         const [columns] = await db.promise().query("SHOW COLUMNS FROM `share_applications` LIKE 'allotted_units'");
         if (columns.length === 0) {
