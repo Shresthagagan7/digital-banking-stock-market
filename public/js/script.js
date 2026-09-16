@@ -438,6 +438,9 @@ function showDashboardPanel(panelId) {
         loadPortfolio();
         loadTradingWallet();
     }
+    if (panelId === 'trading-wallet-section') {
+        loadTradingWallet();
+    }
     if (panelId === 'market-overview-section') {
         loadMarketOverview();
     }
@@ -1001,6 +1004,7 @@ async function viewMyAccounts() {
     document.getElementById('info-holder').innerText = fullName;
     document.getElementById('info-number').innerText = currentUser.account_number;
     document.getElementById('info-date').innerText = currentUser.dob || '2025-01-01';
+    loadTradingWallet();
 }
 
 async function refreshCurrentUser() {
@@ -1013,26 +1017,30 @@ async function refreshCurrentUser() {
 
 async function loadTradingWallet() {
     if (!currentUser) return;
-    const balanceElement = document.getElementById('market-trading-balance');
+    const balanceElements = [document.getElementById('wallet-trading-balance')].filter(Boolean);
     try {
         const response = await fetch('/api/trading-wallet', { credentials: 'include' });
         if (!response.ok) throw new Error('Wallet unavailable');
         const { tradingBalance } = await response.json();
         currentUser.trading_balance = Number(tradingBalance) || 0;
-        if (balanceElement) balanceElement.textContent = `Rs. ${currentUser.trading_balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        balanceElements.forEach(element => element.textContent = `Rs. ${currentUser.trading_balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        const bankBalance = document.getElementById('wallet-bank-balance');
+        if (bankBalance) bankBalance.textContent = `Rs. ${(Number(currentUser.balance) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     } catch (error) {
         console.error('Trading wallet load error:', error);
-        if (balanceElement) balanceElement.textContent = 'Unavailable';
+        balanceElements.forEach(element => element.textContent = 'Unavailable');
     }
 }
 
-async function transferTradingFunds(direction) {
-    const input = document.getElementById('trading-transfer-amount');
+async function transferTradingFunds(direction, inputId = 'wallet-transfer-amount', pinId = 'wallet-transaction-pin') {
+    const input = document.getElementById(inputId);
+    const pinInput = document.getElementById(pinId);
     const amount = Number(input.value);
     if (!Number.isFinite(amount) || amount <= 0) return alert('Enter a valid amount.');
+    if (!pinInput || !/^\d{4}$/.test(pinInput.value)) return alert('Enter your 4-digit transaction PIN.');
     const response = await fetch('/api/trading-wallet/transfer', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, direction })
+        body: JSON.stringify({ amount, direction, pin: pinInput.value })
     });
     const result = await response.json();
     alert(result.message);
@@ -1040,8 +1048,15 @@ async function transferTradingFunds(direction) {
     currentUser.balance = Number(result.bankBalance);
     currentUser.trading_balance = Number(result.tradingBalance);
     input.value = '';
+    pinInput.value = '';
     updateUI();
     loadTradingWallet();
+}
+
+function openTradingWallet() {
+    showDashboardPanel('trading-wallet-section');
+    loadTradingWallet();
+    setTimeout(() => document.getElementById('wallet-transfer-amount')?.focus(), 0);
 }
 
 let statementTransactions = [];
@@ -1050,6 +1065,10 @@ let statementBalance = 0;
 function statementIsCredit(transaction) {
     const description = String(transaction.description || '').toLowerCase();
     return transaction.type === 'credit' || transaction.type === 'interest' || description.includes('deposit');
+}
+
+function isBankStatementTransaction(transaction) {
+    return !/^Share (Purchase|Sell):/i.test(String(transaction.description || ''));
 }
 
 function formatStatementMoney(value) {
@@ -1072,7 +1091,7 @@ async function openStatements() {
     try {
         const response = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
         if (!response.ok) throw new Error('Could not load transactions');
-        statementTransactions = await response.json();
+        statementTransactions = (await response.json()).filter(isBankStatementTransaction);
         applyStatementFilters();
     } catch (error) {
         console.error('Statement load error:', error);

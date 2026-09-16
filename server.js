@@ -546,14 +546,18 @@ app.get('/api/trading-wallet', authenticateToken, async (req, res) => {
 app.post('/api/trading-wallet/transfer', authenticateToken, async (req, res) => {
     const amount = Number(req.body.amount);
     const direction = req.body.direction;
+    const pin = String(req.body.pin || '');
     if (!Number.isFinite(amount) || amount <= 0 || !['to_trading', 'to_bank'].includes(direction)) {
         return res.status(400).json({ message: 'Enter a valid transfer amount.' });
     }
+    if (!/^\d{4}$/.test(pin)) return res.status(400).json({ message: 'Enter your 4-digit transaction PIN.' });
     const connection = await db.promise().getConnection();
     try {
         await connection.beginTransaction();
-        const [[user]] = await connection.query('SELECT balance, trading_balance FROM users WHERE id = ? FOR UPDATE', [req.user.id]);
+        const [[user]] = await connection.query('SELECT balance, trading_balance, transaction_pin FROM users WHERE id = ? FOR UPDATE', [req.user.id]);
         if (!user) throw new Error('User not found.');
+        const isPinValid = await bcrypt.compare(pin, user.transaction_pin);
+        if (!isPinValid) throw new Error('Incorrect transaction PIN.');
         const isFunding = direction === 'to_trading';
         const available = Number(isFunding ? user.balance : user.trading_balance);
         if (available < amount) throw new Error(isFunding ? 'Insufficient bank balance.' : 'Insufficient trading balance.');

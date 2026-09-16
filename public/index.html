@@ -228,6 +228,10 @@
                         <div class="my-section">
                             <h3>SHARE MARKET</h3>
                             <div class="options-grid">
+                                <div class="option-card" onclick="openTradingWallet()">
+                                    <div class="icon">💳</div>
+                                    <p>Trading Wallet</p>
+                                </div>
                                 <div class="option-card" onclick="openMyAsba()">
                                     <div class="icon">🏦</div>
                                     <p>My ASBA</p>
@@ -236,7 +240,7 @@
                                     <div class="icon">📈</div>
                                     <p>Portfolio</p>
                                 </div>
-                                <div class="option-card" onclick="openMyAsba()">
+                                <div class="option-card" onclick="showDashboardPanel('share-market-section')">
                                     <div class="icon">🛒</div>
                                     <p>Buy Shares</p>
                                 </div>
@@ -671,15 +675,6 @@
             
                 <div id="share-market-section" class="container hidden" style="max-width: 600px;">
                     <h2>NEPSE Share Market</h2>
-                    <div class="trading-wallet-card">
-                        <div><span>Trading Wallet Balance</span><strong id="market-trading-balance">Rs. 0.00</strong></div>
-                        <div class="trading-wallet-actions">
-                            <input type="number" id="trading-transfer-amount" min="1" step="0.01" placeholder="Amount">
-                            <button type="button" onclick="transferTradingFunds('to_trading')">Add funds</button>
-                            <button type="button" onclick="transferTradingFunds('to_bank')" class="trading-withdraw">Return to bank</button>
-                        </div>
-                        <small>Move funds between your bank account and trading wallet before buying shares.</small>
-                    </div>
                     <div class="market-controls" style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <input type="text" id="share-symbol" placeholder="Enter Symbol (e.g. NICA, NABIL)" style="text-transform: uppercase;">
                         <button onclick="fetchSharePrice()" style="width: auto; padding: 0 15px;">Check Price</button>
@@ -710,6 +705,24 @@
                             </thead>
                             <tbody id="portfolio-table-body"></tbody>
                         </table>
+                    </div>
+                    <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6; margin-top: 20px;">Back to Dashboard</button>
+                </div>
+
+                <div id="trading-wallet-section" class="container hidden" style="max-width: 540px;">
+                    <h2>Trading Wallet</h2>
+                    <p style="color: #64748b; margin-top: -8px;">Securely move money between your bank account and trading wallet.</p>
+                    <div class="trading-wallet-card">
+                        <div><span>Trading Wallet Balance</span><strong id="wallet-trading-balance">Rs. 0.00</strong></div>
+                        <p class="wallet-bank-balance">Bank Balance: <strong id="wallet-bank-balance">Rs. 0.00</strong></p>
+                    </div>
+                    <div class="wallet-transfer-form">
+                        <label>Amount<input type="number" id="wallet-transfer-amount" min="1" step="0.01" placeholder="Enter amount"></label>
+                        <label>Transaction PIN<input type="password" id="wallet-transaction-pin" inputmode="numeric" maxlength="4" placeholder="Enter 4-digit PIN"></label>
+                        <div class="wallet-action-buttons">
+                            <button type="button" onclick="transferTradingFunds('to_trading', 'wallet-transfer-amount', 'wallet-transaction-pin')">Add funds</button>
+                            <button type="button" onclick="transferTradingFunds('to_bank', 'wallet-transfer-amount', 'wallet-transaction-pin')" class="trading-withdraw">Return to bank</button>
+                        </div>
                     </div>
                     <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6; margin-top: 20px;">Back to Dashboard</button>
                 </div>
