@@ -148,11 +148,12 @@
                         <li onclick="viewMyAccounts()">📁 My Accounts</li>
                         <li onclick="openSendMoney()">📤 Fund Transfer</li>
                         <li onclick="openCashDeposit()">💵 Deposits</li>
-                        <li onclick="alert('Withdrawals feature coming soon!')">🏧 Withdrawals</li>
+                        <li onclick="openWithdrawal()">🏧 Withdrawals</li>
                         <li onclick="viewTransactionHistory()">📜 Transaction History</li>
                         <li onclick="openStatements()">📄 Statements</li>
 
                         <li class="menu-header">SHARE MARKET</li>
+                        <li onclick="openTradingWallet()">💳 Trading Wallet</li>
                         <li onclick="openMyAsba()">🏦 My ASBA</li>
                         <li onclick="showDashboardPanel('share-market-section')">📁 Portfolio</li>
                         <li onclick="openMyAsba()">🛒 Buy Shares</li>
@@ -210,7 +211,7 @@
                                     <div class="icon">💵</div>
                                     <p>Deposits</p>
                                 </div>
-                                <div class="option-card" onclick="alert('Withdrawals feature coming soon!')">
+                                <div class="option-card" onclick="openWithdrawal()">
                                     <div class="icon">🏧</div>
                                     <p>Withdrawals</p>
                                 </div>
@@ -336,7 +337,7 @@
                             <button onclick="showDashboardPanel('send-money-section')" style="background: #3498db; margin-right: 10px; width: auto; padding: 10px 20px;">Transfer Money</button>
                             <button onclick="switchAccountTab('statements-tab')" style="background: #34495e; margin-right: 10px; width: auto; padding: 10px 20px;">Statement</button>
                             <button onclick="openCashDeposit()" style="background: #27ae60; margin-right: 10px; width: auto; padding: 10px 20px;">Deposit</button>
-                            <button onclick="alert('Withdrawal feature coming soon!')" style="background: #e67e22; width: auto; padding: 10px 20px;">Withdraw</button>
+                            <button onclick="openWithdrawal()" style="background: #e67e22; width: auto; padding: 10px 20px;">Withdraw</button>
                         </div>
 
                         <h3 style="margin-bottom: 15px; color: #34495e;">Account Summary</h3>
@@ -705,6 +706,60 @@
                             </thead>
                             <tbody id="portfolio-table-body"></tbody>
                         </table>
+                    </div>
+                    <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6; margin-top: 20px;">Back to Dashboard</button>
+                </div>
+
+                <div id="withdrawal-section" class="container hidden" style="max-width: 650px;">
+                    <h2>Cash Withdrawal</h2>
+                    <p style="color: #64748b;">Withdraw funds securely using your transaction PIN.</p>
+
+                    <div class="details-box" style="text-align: left; margin-bottom: 20px;">
+                        <p><strong>Account:</strong> <span id="wd-account-number"></span></p>
+                        <p><strong>Available Balance:</strong> <span id="wd-available-balance"></span></p>
+                        <p><small>Daily withdrawal limit: Rs. 100,000</small></p>
+                    </div>
+
+                    <div id="wd-form-container">
+                        <label for="wd-method">Withdrawal Method</label>
+                        <select id="wd-method" class="bank-select" onchange="toggleWithdrawalBranch()">
+                            <option value="atm">ATM Withdrawal</option>
+                            <option value="branch">Branch Cash Withdrawal</option>
+                        </select>
+                        <div id="wd-branch-field" class="hidden">
+                            <label for="wd-branch">Branch</label>
+                            <input type="text" id="wd-branch" placeholder="Enter branch name">
+                        </div>
+                        <label for="wd-amount">Amount (Rs.)</label>
+                        <input type="number" id="wd-amount" min="1" step="0.01" placeholder="Enter withdrawal amount">
+                        <label for="wd-pin">Transaction PIN</label>
+                        <input type="password" id="wd-pin" inputmode="numeric" maxlength="4" placeholder="Enter 4-digit transaction PIN">
+                        <label for="wd-remarks">Remarks (optional)</label>
+                        <input type="text" id="wd-remarks" maxlength="100" placeholder="e.g. Personal expense">
+                        <button type="button" onclick="continueWithdrawal()" style="background: #e67e22;">Continue</button>
+                    </div>
+
+                    <div id="wd-confirmation" class="hidden details-box" style="text-align: left;">
+                        <h3>Confirm Withdrawal</h3>
+                        <p><strong>Method:</strong> <span id="wd-confirm-method"></span></p>
+                        <p><strong>Amount:</strong> <span id="wd-confirm-amount"></span></p>
+                        <p><strong>Remaining Balance:</strong> <span id="wd-confirm-balance"></span></p>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="button" id="wd-submit-btn" onclick="processWithdrawal()" style="background: #e67e22;">Confirm Withdrawal</button>
+                            <button type="button" onclick="editWithdrawal()" style="background: #95a5a6;">Edit</button>
+                        </div>
+                    </div>
+
+                    <div id="wd-success" class="hidden details-box" style="text-align: left; border-color: #86efac;">
+                        <h3 style="color: #15803d;">Withdrawal Successful</h3>
+                        <p id="wd-success-message"></p>
+                        <p><strong>Reference:</strong> <span id="wd-reference"></span></p>
+                        <button type="button" onclick="printWithdrawalReceipt()" style="background: #3498db;">Print Receipt</button>
+                    </div>
+
+                    <div style="margin-top: 28px; text-align: left; border-top: 2px solid #eee; padding-top: 15px;">
+                        <h3>Recent Withdrawals</h3>
+                        <ul id="wd-history-list" class="transaction-list-mini"><li>No withdrawals yet.</li></ul>
                     </div>
                     <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6; margin-top: 20px;">Back to Dashboard</button>
                 </div>

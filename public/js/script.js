@@ -1007,6 +1007,116 @@ async function viewMyAccounts() {
     loadTradingWallet();
 }
 
+function withdrawalMethodLabel() {
+    const method = document.getElementById('wd-method').value;
+    const branch = document.getElementById('wd-branch').value.trim();
+    return method === 'atm' ? 'ATM Withdrawal' : `Branch Cash Withdrawal${branch ? ` (${branch})` : ''}`;
+}
+
+function toggleWithdrawalBranch() {
+    document.getElementById('wd-branch-field').classList.toggle('hidden', document.getElementById('wd-method').value !== 'branch');
+}
+
+function openWithdrawal() {
+    if (!currentUser) return;
+    showDashboardPanel('withdrawal-section');
+    document.getElementById('wd-account-number').innerText = currentUser.account_number;
+    document.getElementById('wd-available-balance').innerText = `Rs. ${(Number(currentUser.balance) || 0).toLocaleString()}`;
+    document.getElementById('wd-form-container').classList.remove('hidden');
+    document.getElementById('wd-confirmation').classList.add('hidden');
+    document.getElementById('wd-success').classList.add('hidden');
+    toggleWithdrawalBranch();
+    loadWithdrawalHistory();
+}
+
+function continueWithdrawal() {
+    const amount = Number(document.getElementById('wd-amount').value);
+    const pin = document.getElementById('wd-pin').value;
+    const isBranch = document.getElementById('wd-method').value === 'branch';
+    const branch = document.getElementById('wd-branch').value.trim();
+    const balance = Number(currentUser?.balance) || 0;
+    if (!Number.isFinite(amount) || amount <= 0) return alert('Please enter a valid withdrawal amount.');
+    if (amount > balance) return alert('Withdrawal amount cannot exceed your available balance.');
+    if (amount > 100000) return alert('Daily withdrawal limit is Rs. 100,000.');
+    if (isBranch && !branch) return alert('Please enter the branch name.');
+    if (!/^\d{4}$/.test(pin)) return alert('Please enter your 4-digit transaction PIN.');
+    document.getElementById('wd-confirm-method').innerText = withdrawalMethodLabel();
+    document.getElementById('wd-confirm-amount').innerText = `Rs. ${amount.toLocaleString()}`;
+    document.getElementById('wd-confirm-balance').innerText = `Rs. ${(balance - amount).toLocaleString()}`;
+    document.getElementById('wd-form-container').classList.add('hidden');
+    document.getElementById('wd-confirmation').classList.remove('hidden');
+}
+
+function editWithdrawal() {
+    document.getElementById('wd-confirmation').classList.add('hidden');
+    document.getElementById('wd-form-container').classList.remove('hidden');
+}
+
+async function processWithdrawal() {
+    const button = document.getElementById('wd-submit-btn');
+    button.disabled = true;
+    button.innerText = 'Processing...';
+    try {
+        const response = await fetch('/api/withdraw', {
+            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                amount: Number(document.getElementById('wd-amount').value),
+                method: document.getElementById('wd-method').value,
+                branch: document.getElementById('wd-branch').value.trim(),
+                pin: document.getElementById('wd-pin').value,
+                remarks: document.getElementById('wd-remarks').value.trim()
+            })
+        });
+        const responseBody = await response.text();
+        let result;
+        try {
+            result = JSON.parse(responseBody);
+        } catch {
+            const endpointHint = response.status === 404
+                ? 'Withdrawal service was not found. Restart the Node server and try again.'
+                : 'The server returned an unexpected response. Please try again.';
+            throw new Error(endpointHint);
+        }
+        if (!response.ok) throw new Error(result.message || 'Withdrawal failed.');
+        currentUser.balance = result.newBalance;
+        updateUI();
+        document.getElementById('wd-confirmation').classList.add('hidden');
+        document.getElementById('wd-success-message').innerText = `Rs. ${Number(document.getElementById('wd-amount').value).toLocaleString()} has been withdrawn via ${withdrawalMethodLabel()}.`;
+        document.getElementById('wd-reference').innerText = result.reference;
+        document.getElementById('wd-success').classList.remove('hidden');
+        document.getElementById('wd-available-balance').innerText = `Rs. ${Number(result.newBalance).toLocaleString()}`;
+        document.getElementById('wd-pin').value = '';
+        loadWithdrawalHistory();
+    } catch (error) {
+        alert(error.message);
+        editWithdrawal();
+    } finally {
+        button.disabled = false;
+        button.innerText = 'Confirm Withdrawal';
+    }
+}
+
+async function loadWithdrawalHistory() {
+    try {
+        const response = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('Could not load withdrawals.');
+        const withdrawals = (await response.json()).filter(transaction => String(transaction.description || '').startsWith('Withdrawal:'));
+        document.getElementById('wd-history-list').innerHTML = withdrawals.length
+            ? withdrawals.slice(0, 10).map(transaction => `<li>${new Date(transaction.transaction_date).toLocaleDateString()} — <strong>Rs. ${Number(transaction.amount).toLocaleString()}</strong> — ${escapeStatementHtml(transaction.description)}</li>`).join('')
+            : '<li>No withdrawals yet.</li>';
+    } catch (error) {
+        document.getElementById('wd-history-list').innerHTML = '<li>Unable to load withdrawal history.</li>';
+    }
+}
+
+function printWithdrawalReceipt() {
+    const receipt = `CASH WITHDRAWAL RECEIPT - mero-Bank\n\nDate: ${new Date().toLocaleString()}\nAccount No: ${currentUser.account_number}\nMethod: ${withdrawalMethodLabel()}\nAmount: Rs. ${Number(document.getElementById('wd-amount').value).toLocaleString()}\nReference: ${document.getElementById('wd-reference').innerText}\nStatus: SUCCESSFUL`;
+    const printWindow = window.open('', '', 'height=500,width=700');
+    printWindow.document.write(`<pre>${receipt}</pre>`);
+    printWindow.document.close();
+    printWindow.print();
+}
+
 async function refreshCurrentUser() {
     const response = await fetch('/api/check-session', { credentials: 'include' });
     if (!response.ok) return false;

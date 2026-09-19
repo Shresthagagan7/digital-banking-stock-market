@@ -617,6 +617,72 @@ app.post('/api/deposit', authenticateToken, async (req, res) => {
     }
 });
 
+app.post('/api/withdraw', authenticateToken, async (req, res) => {
+    const amount = Number(req.body.amount);
+    const method = String(req.body.method || '').toLowerCase();
+    const branch = String(req.body.branch || '').trim();
+    const pin = String(req.body.pin || '');
+    const remarks = String(req.body.remarks || '').trim().slice(0, 100);
+    const dailyLimit = 100000;
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ message: 'Enter a valid withdrawal amount.' });
+    }
+    if (!['atm', 'branch'].includes(method)) {
+        return res.status(400).json({ message: 'Select a valid withdrawal method.' });
+    }
+    if (method === 'branch' && !branch) {
+        return res.status(400).json({ message: 'Branch is required for cash withdrawal.' });
+    }
+    if (!/^\d{4}$/.test(pin)) {
+        return res.status(400).json({ message: 'Enter your 4-digit transaction PIN.' });
+    }
+
+    let connection;
+    try {
+        connection = await db.promise().getConnection();
+        await connection.beginTransaction();
+        const [[user]] = await connection.query(
+            'SELECT balance, transaction_pin, status FROM users WHERE id = ? FOR UPDATE', [req.user.id]
+        );
+        if (!user) throw new Error('User account not found.');
+        if (user.status !== 'active') throw new Error('Only active accounts can make withdrawals.');
+        if (!await bcrypt.compare(pin, user.transaction_pin)) throw new Error('Incorrect transaction PIN.');
+        if (Number(user.balance) < amount) throw new Error('Insufficient available balance.');
+
+        const [[daily]] = await connection.query(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE user_id = ? AND type = 'debit' AND description LIKE 'Withdrawal:%' AND DATE(transaction_date) = CURDATE()",
+            [req.user.id]
+        );
+        if (Number(daily.total) + amount > dailyLimit) {
+            throw new Error(`Daily withdrawal limit is Rs. ${dailyLimit.toLocaleString()}.`);
+        }
+
+        const methodLabel = method === 'atm' ? 'ATM' : `Branch Cash (${branch})`;
+        const description = `Withdrawal: ${methodLabel}${remarks ? ` - ${remarks}` : ''}`;
+        await connection.query('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, req.user.id]);
+        const [transaction] = await connection.query(
+            "INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'debit', ?, ?)",
+            [req.user.id, amount, description]
+        );
+        await connection.query('INSERT INTO notifications (user_id, message) VALUES (?, ?)', [
+            req.user.id, `Rs. ${amount.toLocaleString()} withdrawn via ${methodLabel}.`
+        ]);
+        const [[updated]] = await connection.query('SELECT balance FROM users WHERE id = ?', [req.user.id]);
+        await connection.commit();
+        res.json({
+            message: 'Withdrawal processed successfully.',
+            newBalance: Number(updated.balance),
+            reference: `WD-${transaction.insertId}`
+        });
+    } catch (err) {
+        if (connection) await connection.rollback();
+        res.status(400).json({ message: err.message || 'Withdrawal failed.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
 app.get('/api/admin/user-by-account/:accountNumber', authenticateToken, async (req, res) => {
     const { accountNumber } = req.params;
     try {
