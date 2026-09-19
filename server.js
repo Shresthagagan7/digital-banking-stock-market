@@ -781,12 +781,54 @@ app.post('/api/admin/send-message', authenticateToken, async (req, res) => {
     }
 });
 
-app.post('/api/update-profile', (req, res) => {
-    const { userId, image } = req.body;
-    db.query("UPDATE users SET profile_pic = ? WHERE id = ?", [image, userId], (err) => {
-        if (err) return res.status(500).send(err);
-        res.json({ message: "Profile updated" });
-    });
+app.get('/api/profile', authenticateToken, async (req, res) => {
+    try {
+        const [[profile]] = await db.promise().query(
+            'SELECT first_name, last_name, phone_number, branch, dob, gender, account_number, account_type, status, profile_pic FROM users WHERE id = ?',
+            [req.user.id]
+        );
+        if (!profile) return res.status(404).json({ message: 'Profile not found.' });
+        res.json({ profile });
+    } catch (err) {
+        res.status(500).json({ message: 'Could not load profile.' });
+    }
+});
+
+app.put('/api/profile', authenticateToken, async (req, res) => {
+    const firstName = String(req.body.firstName || '').trim();
+    const lastName = String(req.body.lastName || '').trim();
+    const phone = String(req.body.phone || '').trim();
+    const branch = String(req.body.branch || '').trim();
+    if (!firstName || !lastName || !branch || firstName.length > 60 || lastName.length > 60 || branch.length > 100) {
+        return res.status(400).json({ message: 'Enter valid name and branch details.' });
+    }
+    if (!/^[0-9+\-\s]{7,20}$/.test(phone)) {
+        return res.status(400).json({ message: 'Enter a valid mobile number.' });
+    }
+    try {
+        const [duplicate] = await db.promise().query('SELECT id FROM users WHERE phone_number = ? AND id <> ?', [phone, req.user.id]);
+        if (duplicate.length) return res.status(409).json({ message: 'This mobile number is already registered.' });
+        await db.promise().query(
+            'UPDATE users SET first_name = ?, last_name = ?, phone_number = ?, branch = ? WHERE id = ?',
+            [firstName, lastName, phone, branch, req.user.id]
+        );
+        res.json({ message: 'Profile details saved successfully.', profile: { first_name: firstName, last_name: lastName, phone_number: phone, branch } });
+    } catch (err) {
+        res.status(500).json({ message: 'Could not save profile details.' });
+    }
+});
+
+app.post('/api/update-profile', authenticateToken, async (req, res) => {
+    const image = String(req.body.image || '');
+    if (!/^data:image\/(png|jpeg|webp);base64,/.test(image) || image.length > 3000000) {
+        return res.status(400).json({ message: 'Use a PNG, JPEG, or WebP image smaller than 2 MB.' });
+    }
+    try {
+        await db.promise().query('UPDATE users SET profile_pic = ? WHERE id = ?', [image, req.user.id]);
+        res.json({ message: 'Profile photo updated.' });
+    } catch (err) {
+        res.status(500).json({ message: 'Could not update profile photo.' });
+    }
 });
 
 app.get('/api/notifications/:userId', (req, res) => {

@@ -728,9 +728,12 @@ async function processChangePassword() {
     alert(result.message);
     if(res.ok) showDashboardPanel('main-view');
 }
-async function uploadProfile() {
-    const file = document.getElementById('profile-upload').files[0];
+async function uploadProfile(inputId = 'profile-upload') {
+    const file = document.getElementById(inputId).files[0];
     if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
+        return alert('Please choose a PNG, JPEG, or WebP image smaller than 2 MB.');
+    }
 
     const reader = new FileReader();
     reader.onloadend = async () => {
@@ -739,15 +742,20 @@ async function uploadProfile() {
             credentials: 'include',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUser.id, image: base64String }),
+            body: JSON.stringify({ image: base64String }),
         });
 
         if (res.ok) {
             document.getElementById('header-profile-img').src = base64String;
             document.getElementById('welcome-profile-img').src = base64String;
-            alert("Profile updated!");
+            const pageImage = document.getElementById('profile-page-image');
+            if (pageImage) pageImage.src = base64String;
+            alert("Profile photo updated!");
             currentUser.profile_pic = base64String; 
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        } else {
+            const result = await res.json().catch(() => ({}));
+            alert(result.message || 'Could not update profile photo.');
         }
     };
     reader.readAsDataURL(file);
@@ -1005,6 +1013,51 @@ async function viewMyAccounts() {
     document.getElementById('info-number').innerText = currentUser.account_number;
     document.getElementById('info-date').innerText = currentUser.dob || '2025-01-01';
     loadTradingWallet();
+}
+
+async function openProfile() {
+    if (!currentUser) return;
+    showDashboardPanel('profile-section');
+    try {
+        const response = await fetch('/api/profile', { credentials: 'include' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Could not load profile.');
+        const profile = result.profile;
+        document.getElementById('profile-first-name').value = profile.first_name || '';
+        document.getElementById('profile-last-name').value = profile.last_name || '';
+        document.getElementById('profile-phone').value = profile.phone_number || '';
+        document.getElementById('profile-branch').value = profile.branch || '';
+        document.getElementById('profile-dob').value = profile.dob ? String(profile.dob).slice(0, 10) : '';
+        document.getElementById('profile-account-number').value = profile.account_number || '';
+        document.getElementById('profile-account-type').value = profile.account_type || 'Savings';
+        document.getElementById('profile-status').value = profile.status || '';
+        document.getElementById('profile-display-name').innerText = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+        document.getElementById('profile-display-account').innerText = `Account No. ${profile.account_number || ''}`;
+        document.getElementById('profile-page-image').src = profile.profile_pic || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+    } catch (error) {
+        alert(error.message);
+        showDashboardPanel('main-view');
+    }
+}
+
+async function saveProfile(event) {
+    event.preventDefault();
+    const response = await fetch('/api/profile', {
+        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            firstName: document.getElementById('profile-first-name').value,
+            lastName: document.getElementById('profile-last-name').value,
+            phone: document.getElementById('profile-phone').value,
+            branch: document.getElementById('profile-branch').value
+        })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) return alert(result.message || 'Could not save profile.');
+    Object.assign(currentUser, result.profile);
+    updateUI();
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    document.getElementById('profile-display-name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+    alert(result.message);
 }
 
 function withdrawalMethodLabel() {
@@ -1345,6 +1398,114 @@ async function viewTransactionHistory() {
     const res = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
     const transactions = await res.json();
     renderTransactionHistory('history-transaction-rows', transactions, currentUser.balance);
+}
+
+let reportTransactions = [];
+
+function reportDateValue(date) {
+    const value = new Date(date);
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function isReportCredit(transaction) {
+    return transaction.type === 'credit' || transaction.type === 'interest';
+}
+
+function reportCategory(transaction) {
+    const description = String(transaction.description || '').toLowerCase();
+    if (description.startsWith('withdrawal:')) return 'Withdrawal';
+    if (description.includes('deposit')) return 'Deposit';
+    if (description.includes('transfer')) return 'Transfer';
+    if (description.includes('share')) return 'Share Market';
+    if (description.includes('payment') || description.includes('topup')) return 'Payment';
+    return isReportCredit(transaction) ? 'Credit' : 'Debit';
+}
+
+function setDefaultReportDates() {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - 29);
+    document.getElementById('report-from').value = reportDateValue(from);
+    document.getElementById('report-to').value = reportDateValue(to);
+}
+
+async function openReports() {
+    if (!currentUser) return;
+    showDashboardPanel('reports-section');
+    if (!document.getElementById('report-from').value) setDefaultReportDates();
+    await loadReports();
+}
+
+async function loadReports() {
+    const rows = document.getElementById('report-rows');
+    const from = document.getElementById('report-from').value;
+    const to = document.getElementById('report-to').value;
+    const type = document.getElementById('report-type').value;
+    if (from && to && from > to) return alert('The start date cannot be after the end date.');
+    rows.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 25px;">Loading report...</td></tr>';
+    try {
+        const response = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('Could not load report transactions.');
+        const transactions = await response.json();
+        reportTransactions = transactions.filter(transaction => {
+            const date = reportDateValue(transaction.transaction_date);
+            const category = reportCategory(transaction).toLowerCase();
+            const matchesDate = (!from || date >= from) && (!to || date <= to);
+            const matchesType = type === 'all' || (type === 'credit' && isReportCredit(transaction)) ||
+                (type === 'debit' && !isReportCredit(transaction)) || category === type;
+            return matchesDate && matchesType;
+        });
+        renderReports();
+    } catch (error) {
+        reportTransactions = [];
+        rows.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 25px;">${escapeStatementHtml(error.message)}</td></tr>`;
+    }
+}
+
+function renderReports() {
+    let credit = 0;
+    let debit = 0;
+    reportTransactions.forEach(transaction => isReportCredit(transaction) ? credit += Number(transaction.amount) || 0 : debit += Number(transaction.amount) || 0);
+    const money = value => `Rs. ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById('report-credit').innerText = money(credit);
+    document.getElementById('report-debit').innerText = money(debit);
+    document.getElementById('report-net').innerText = money(credit - debit);
+    document.getElementById('report-count').innerText = reportTransactions.length;
+    const from = document.getElementById('report-from').value || 'All time';
+    const to = document.getElementById('report-to').value || 'Today';
+    document.getElementById('report-period').innerText = `Report period: ${from} to ${to}`;
+    const rows = document.getElementById('report-rows');
+    rows.innerHTML = reportTransactions.length ? reportTransactions.map(transaction => {
+        const creditAmount = isReportCredit(transaction) ? money(Number(transaction.amount) || 0) : '—';
+        const debitAmount = isReportCredit(transaction) ? '—' : money(Number(transaction.amount) || 0);
+        return `<tr><td style="padding: 11px; border-bottom: 1px solid #e5e7eb;">${new Date(transaction.transaction_date).toLocaleDateString()}</td><td style="padding: 11px; border-bottom: 1px solid #e5e7eb;">${reportCategory(transaction)}</td><td style="padding: 11px; border-bottom: 1px solid #e5e7eb;">${escapeStatementHtml(transaction.description || 'Transaction')}</td><td style="padding: 11px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #15803d;">${creditAmount}</td><td style="padding: 11px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #dc2626;">${debitAmount}</td></tr>`;
+    }).join('') : '<tr><td colspan="5" style="text-align:center; padding: 25px;">No transactions found for this selection.</td></tr>';
+}
+
+function downloadReportCsv() {
+    const header = ['Date', 'Category', 'Description', 'Credit', 'Debit'];
+    const rows = reportTransactions.map(transaction => [
+        reportDateValue(transaction.transaction_date), reportCategory(transaction), transaction.description || '',
+        isReportCredit(transaction) ? Number(transaction.amount) || 0 : '',
+        isReportCredit(transaction) ? '' : Number(transaction.amount) || 0
+    ]);
+    const csv = [header, ...rows].map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    link.download = `financial-report-${document.getElementById('report-from').value || 'all'}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+function printReport() {
+    const content = document.getElementById('report-print-area').innerHTML;
+    const printWindow = window.open('', '', 'height=700,width=1000');
+    printWindow.document.write(`<html><head><title>Financial Report</title><style>body{font-family:Arial;padding:24px}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left}th{background:#f1f5f9}</style></head><body><h2>mero-Bank Financial Report</h2><p>Account: ${escapeStatementHtml(currentUser.account_number)}</p>${content}</body></html>`);
+    printWindow.document.close();
+    printWindow.print();
 }
 
 async function viewOrderHistory() {
