@@ -32,6 +32,13 @@ async function fetchSharePrice() {
             document.getElementById('share-details-card').classList.remove('hidden');
             document.getElementById('res-symbol').innerText = data.symbol;
             document.getElementById('res-price').innerText = parseFloat(data.current_price).toFixed(2);
+            const buyButton = document.getElementById('buy-share-btn');
+            const buyStatus = document.getElementById('buy-share-status');
+            buyButton.disabled = !data.can_buy;
+            buyButton.style.opacity = data.can_buy ? '1' : '0.55';
+            buyButton.title = data.can_buy ? 'Buy this share' : 'Buying is unavailable after the closing date';
+            buyStatus.textContent = data.can_buy ? '' : 'Buying is unavailable because this share is not currently open.';
+            buyStatus.classList.toggle('hidden', data.can_buy);
         } else {
             const err = await res.json();
             alert(err.message);
@@ -44,6 +51,9 @@ async function fetchSharePrice() {
     }
 }
 async function processTrade(action) {
+    if (action === 'buy' && document.getElementById('buy-share-btn').disabled) {
+        return alert('This share is not currently open for buying.');
+    }
     const symbol = document.getElementById('res-symbol').innerText;
     const price = parseFloat(document.getElementById('res-price').innerText);
     const quantity = parseInt(document.getElementById('trade-qty').value);
@@ -87,9 +97,9 @@ async function loadPortfolio() {
     if (portfolio.length > 0) {
         tableBody.innerHTML = portfolio.map(item => `
             ${(() => {
-                const avgPrice = parseFloat(item.average_price);
-                const currentPrice = parseFloat(item.current_price) || 0;
-                const quantity = parseInt(item.quantity);
+                const avgPrice = Number(item.average_price) || 0;
+                const currentPrice = Number(item.current_price) || 0;
+                const quantity = Number(item.quantity) || 0;
                 const investment = avgPrice * quantity;
                 const currentValue = currentPrice * quantity;
                 const pnl = currentValue - investment;
@@ -103,13 +113,14 @@ async function loadPortfolio() {
                         <td>${quantity}</td>
                         <td>Rs. ${avgPrice.toFixed(2)}</td>
                         <td>Rs. ${currentPrice.toFixed(2)}</td>
+                        <td>Rs. ${currentValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td class="${pnlClass}">${pnlSign}Rs. ${pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td><button onclick="sellFromPortfolio('${item.symbol}', ${quantity})" class="action-btn-red" style="padding: 2px 10px; font-size: 12px; cursor: pointer;">Sell</button></td>
                     </tr>`;
             })()}
         `).join('');
     } else {
-        tableBody.innerHTML = "<tr><td colspan='7'>No shares in portfolio.</td></tr>";
+        tableBody.innerHTML = "<tr><td colspan='8'>No shares in portfolio.</td></tr>";
     }
 }
 function sellFromPortfolio(symbol, maxQty) {
@@ -684,6 +695,10 @@ function toggleBalance() {
 }
 function toggleNotifications() {
     const dropdown = document.getElementById('noti-dropdown');
+    if (currentUser && getSettingsPreferences().notifications === false) {
+        dropdown.classList.add('hidden');
+        return alert('In-app notifications are turned off in Settings.');
+    }
     dropdown.classList.toggle('hidden');
     
     if (!dropdown.classList.contains('hidden') && currentUser) {
@@ -704,9 +719,11 @@ async function fetchDashboardData() {
     const allNotis = await fullRes.json();
 
     const unreadCount = allNotis.filter(n => !n.is_read).length;
-    if (unreadCount > 0) {
+    if (unreadCount > 0 && getSettingsPreferences().notifications !== false) {
         countBadge.innerText = unreadCount;
         countBadge.classList.remove('hidden');
+    } else {
+        countBadge.classList.add('hidden');
     }
 
     if (data.notifications.length > 0) {
@@ -722,11 +739,73 @@ async function processChangePassword() {
         credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.id, oldPassword, newPassword }),
+        body: JSON.stringify({ oldPassword, newPassword }),
     });
     const result = await res.json();
     alert(result.message);
-    if(res.ok) showDashboardPanel('main-view');
+    if(res.ok) {
+        document.getElementById('old-pass').value = '';
+        document.getElementById('new-pass').value = '';
+        openSettings();
+    }
+}
+
+function settingsStorageKey() {
+    return `bank-settings-${currentUser?.id || 'guest'}`;
+}
+
+function getSettingsPreferences() {
+    try { return JSON.parse(localStorage.getItem(settingsStorageKey())) || { notifications: true }; }
+    catch { return { notifications: true }; }
+}
+
+function saveSettingsPreferences(preferences) {
+    localStorage.setItem(settingsStorageKey(), JSON.stringify(preferences));
+}
+
+function setThemePreference(isDark) {
+    document.body.classList.toggle('dark-mode', isDark);
+    localStorage.setItem('user_theme', isDark ? 'dark' : 'light');
+    const headerToggle = document.getElementById('dark-mode-toggle-user');
+    const settingsToggle = document.getElementById('settings-dark-mode');
+    if (headerToggle) headerToggle.checked = isDark;
+    if (settingsToggle) settingsToggle.checked = isDark;
+}
+
+function setNotificationPreference(enabled) {
+    const preferences = getSettingsPreferences();
+    preferences.notifications = enabled;
+    saveSettingsPreferences(preferences);
+    document.getElementById('settings-notifications').checked = enabled;
+    if (!enabled) {
+        document.getElementById('noti-dropdown').classList.add('hidden');
+        document.getElementById('user-noti-count').classList.add('hidden');
+    }
+}
+
+function openSettings() {
+    showDashboardPanel('settings-section');
+    const preferences = getSettingsPreferences();
+    document.getElementById('settings-dark-mode').checked = document.body.classList.contains('dark-mode');
+    document.getElementById('settings-notifications').checked = preferences.notifications !== false;
+}
+
+async function processChangeTransactionPin() {
+    const oldPin = document.getElementById('old-transaction-pin').value;
+    const newPin = document.getElementById('new-transaction-pin').value;
+    const confirmPin = document.getElementById('confirm-transaction-pin').value;
+    if (!/^\d{4}$/.test(oldPin) || !/^\d{4}$/.test(newPin)) return alert('Please enter valid 4-digit PINs.');
+    if (newPin !== confirmPin) return alert('New PIN and confirmation PIN do not match.');
+    const response = await fetch('/api/change-transaction-pin', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPin, newPin })
+    });
+    const result = await response.json().catch(() => ({}));
+    alert(result.message || 'Could not update transaction PIN.');
+    if (response.ok) {
+        ['old-transaction-pin', 'new-transaction-pin', 'confirm-transaction-pin'].forEach(id => document.getElementById(id).value = '');
+        openSettings();
+    }
 }
 async function uploadProfile(inputId = 'profile-upload') {
     const file = document.getElementById(inputId).files[0];
@@ -1886,15 +1965,7 @@ document.addEventListener('DOMContentLoaded', () => {
         darkModeToggle.checked = true;
     }
 
-    darkModeToggle.addEventListener('change', function() {
-        if (this.checked) {
-            document.body.classList.add('dark-mode');
-            localStorage.setItem('user_theme', 'dark');
-        } else {
-            document.body.classList.remove('dark-mode');
-            localStorage.setItem('user_theme', 'light');
-        }
-    });
+    darkModeToggle.addEventListener('change', function() { setThemePreference(this.checked); });
 
     checkLoginStatus();
 });

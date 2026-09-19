@@ -630,25 +630,45 @@ a:hover { text-decoration: underline; }
 }
 
 /* My Portfolio Table Styles */
+#share-market-section {
+    max-width: 1100px;
+}
+
 #portfolio-table {
-    width: 100%; 
-    font-size: 1.1em;
-    border-collapse: collapse; 
+    width: 100%;
+    min-width: 900px;
+    table-layout: auto;
+    font-size: 0.95em;
+    border-collapse: collapse;
     margin-top: 20px;
 }
 
 #portfolio-table th,
 #portfolio-table td {
-    padding: 12px 15px; /* सेल भित्रको खाली ठाउँ बढाउँछ */
-    border: 1px solid #ddd; /* सेलको वरिपरि बोर्डर थप्छ */
+    padding: 10px 12px;
+    border: 1px solid #ddd;
     text-align: left;
     vertical-align: middle;
+    line-height: 1.35;
 }
 
 #portfolio-table th {
-    background-color: #f2f2f2; /* हेडरको ब्याकग्राउन्ड कलर */
+    background-color: #f2f2f2; 
     font-weight: bold;
     color: #333;
+}
+
+#share-market-section .my-portfolio {
+    overflow-x: auto;
+}
+
+#share-market-section .my-portfolio .transaction-list-mini {
+    white-space: nowrap;
+}
+
+#share-market-section .my-portfolio .transaction-list-mini th,
+#share-market-section .my-portfolio .transaction-list-mini td {
+    padding: 10px 12px;
 }
 
 /* Dark Mode Styles for the table */
@@ -661,14 +681,13 @@ body.dark-mode #portfolio-table td {
     border-color: #444;
 }
 
-/* नाफा/नोक्सानको लागि कलर */
 .profit {
-    color: #27ae60; /* हरियो */
+    color: #27ae60; 
     font-weight: bold;
 }
 
 .loss {
-    color: #e74c3c; /* रातो */
+    color: #e74c3c;
     font-weight: bold;
 }
 .rejected-row {

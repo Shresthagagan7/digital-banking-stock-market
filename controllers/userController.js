@@ -4,9 +4,9 @@ const bcrypt = require('bcryptjs');
 exports.buyShare = async (req, res) => {
     const userId = req.user.id;
     const { symbol, quantity, price } = req.body;
+    const normalizedSymbol = String(symbol || '').trim().toUpperCase();
     const units = Number(quantity);
     const unitPrice = Number(price);
-    const totalCost = units * unitPrice;
     if (!Number.isInteger(units) || units <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) {
         return res.status(400).json({ message: 'Enter a valid quantity and price.' });
     }
@@ -15,20 +15,29 @@ exports.buyShare = async (req, res) => {
     try {
         await connection.beginTransaction();
 
+        const [[stock]] = await connection.query("SELECT id, current_price FROM stocks WHERE symbol = ?", [normalizedSymbol]);
+        if (!stock) {
+            throw new Error(`The stock with symbol '${normalizedSymbol}' is not listed in the market. Cannot purchase.`);
+        }
+
+        const [[activeOffering]] = await connection.query(
+            "SELECT id FROM share_offerings WHERE symbol = ? AND status = 'open' AND open_date <= CURDATE() AND close_date >= CURDATE() LIMIT 1",
+            [normalizedSymbol]
+        );
+        if (!activeOffering) {
+            throw new Error(`Buying ${normalizedSymbol} is unavailable because its offering is not currently open.`);
+        }
+
+        const marketPrice = Number(stock.current_price);
+        const totalCost = units * marketPrice;
         const [user] = await connection.query("SELECT trading_balance FROM users WHERE id = ? FOR UPDATE", [userId]);
         if (!user.length || Number(user[0].trading_balance) < totalCost) {
             throw new Error("Insufficient trading balance to buy shares. Add funds to your trading wallet first.");
         }
 
-        // Check if the stock exists in the stocks table before allowing a purchase
-        const [stockExists] = await connection.query("SELECT id FROM stocks WHERE symbol = ?", [symbol]);
-        if (stockExists.length === 0) {
-            throw new Error(`The stock with symbol '${symbol}' is not listed in the market. Cannot purchase.`);
-        }
-
         await connection.query("UPDATE users SET trading_balance = trading_balance - ? WHERE id = ?", [totalCost, userId]);
 
-        const [existing] = await connection.query("SELECT * FROM portfolio WHERE user_id = ? AND symbol = ?", [userId, symbol]);
+        const [existing] = await connection.query("SELECT * FROM portfolio WHERE user_id = ? AND symbol = ?", [userId, normalizedSymbol]);
         
         if (existing.length > 0) {
             const oldQty = existing[0].quantity;
@@ -38,11 +47,11 @@ exports.buyShare = async (req, res) => {
 
             await connection.query("UPDATE portfolio SET quantity = ?, average_price = ? WHERE id = ?", [newQty, newAvg, existing[0].id]);
         } else {
-            await connection.query("INSERT INTO portfolio (user_id, symbol, quantity, average_price) VALUES (?, ?, ?, ?)", [userId, symbol, units, unitPrice]);
+            await connection.query("INSERT INTO portfolio (user_id, symbol, quantity, average_price) VALUES (?, ?, ?, ?)", [userId, normalizedSymbol, units, marketPrice]);
         }
 
         await connection.query("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'debit', ?, ?)", 
-            [userId, totalCost, `Share Purchase: ${units} units of ${symbol} @ Rs. ${unitPrice}`]);
+            [userId, totalCost, `Share Purchase: ${units} units of ${normalizedSymbol} @ Rs. ${marketPrice}`]);
 
         await connection.commit();
         res.json({ message: "Share purchase successful!" });

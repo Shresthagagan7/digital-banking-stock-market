@@ -166,7 +166,7 @@
                         <li class="menu-header">OTHER</li>
                         <li onclick="openReports()">🗒️ Reports</li>
                         <li onclick="openProfile()">👤 Profile</li>
-                        <li onclick="showDashboardPanel('change-password-section')">⚙️ Settings</li>
+                        <li onclick="openSettings()">⚙️ Settings</li>
                         <li onclick="logout()" style="margin-top: auto; background: #c0392b;">🚪 Logout</li>
                     </ul>
                 </aside>
@@ -279,7 +279,7 @@
                                     <div class="icon">👤</div>
                                     <p>Profile</p>
                                 </div>
-                                <div class="option-card" onclick="showDashboardPanel('change-password-section')">
+                                <div class="option-card" onclick="openSettings()">
                                     <div class="icon">⚙️</div>
                                     <p>Settings</p>
                                 </div>
@@ -547,12 +547,39 @@
                     <button onclick="showDashboardPanel('main-view')" class="market-back-btn">Back to Dashboard</button>
                 </div>
 
-                <div id="change-password-section" class="container hidden">
+                <div id="settings-section" class="container hidden" style="max-width: 760px; text-align: left; padding: 30px;">
+                    <h2 style="color: #2c3e50;">Settings</h2>
+                    <p style="color: #64748b;">Manage your security and app preferences.</p>
+                    <h3 style="margin-top: 26px;">Security</h3>
+                    <div class="options-grid" style="margin-top: 12px;">
+                        <div class="option-card" onclick="showDashboardPanel('change-password-section')"><div class="icon">🔑</div><p>Change Password</p><small>Update your login password</small></div>
+                        <div class="option-card" onclick="showDashboardPanel('change-pin-section')"><div class="icon">🔐</div><p>Change Transaction PIN</p><small>Update your 4-digit PIN</small></div>
+                        <div class="option-card" onclick="openProfile()"><div class="icon">👤</div><p>Profile</p><small>Update contact details</small></div>
+                    </div>
+                    <h3 style="margin-top: 30px;">Preferences</h3>
+                    <div class="details-box" style="margin-top: 12px; display: grid; gap: 16px;">
+                        <label style="display: flex; justify-content: space-between; align-items: center; gap: 16px;"><span><strong>Dark mode</strong><br><small>Use a darker appearance</small></span><input type="checkbox" id="settings-dark-mode" onchange="setThemePreference(this.checked)"></label>
+                        <label style="display: flex; justify-content: space-between; align-items: center; gap: 16px;"><span><strong>In-app notifications</strong><br><small>Show transaction alerts in the notification bell</small></span><input type="checkbox" id="settings-notifications" onchange="setNotificationPreference(this.checked)"></label>
+                    </div>
+                    <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6; margin-top: 24px;">Back to Dashboard</button>
+                </div>
+
+                <div id="change-password-section" class="container hidden" style="max-width: 520px;">
                     <h2>Change Password</h2>
                     <input type="password" id="old-pass" placeholder="Old Password">
-                    <input type="password" id="new-pass" placeholder="New Password">
+                    <input type="password" id="new-pass" placeholder="New Password (8+ chars, letter, number, symbol)">
                     <button onclick="processChangePassword()">Update Password</button>
-                    <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6;">Cancel</button>
+                    <button onclick="openSettings()" style="background: #95a5a6;">Back to Settings</button>
+                </div>
+
+                <div id="change-pin-section" class="container hidden" style="max-width: 520px;">
+                    <h2>Change Transaction PIN</h2>
+                    <p style="color: #64748b;">Your PIN is required for transfers and withdrawals.</p>
+                    <input type="password" id="old-transaction-pin" inputmode="numeric" maxlength="4" placeholder="Current 4-digit PIN">
+                    <input type="password" id="new-transaction-pin" inputmode="numeric" maxlength="4" placeholder="New 4-digit PIN">
+                    <input type="password" id="confirm-transaction-pin" inputmode="numeric" maxlength="4" placeholder="Confirm new 4-digit PIN">
+                    <button onclick="processChangeTransactionPin()">Update Transaction PIN</button>
+                    <button onclick="openSettings()" style="background: #95a5a6;">Back to Settings</button>
                 </div>
 
                 
@@ -736,7 +763,7 @@
                 </div>
                 
             
-                <div id="share-market-section" class="container hidden" style="max-width: 600px;">
+                <div id="share-market-section" class="container hidden">
                     <h2>NEPSE Share Market</h2>
                     <div class="market-controls" style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <input type="text" id="share-symbol" placeholder="Enter Symbol (e.g. NICA, NABIL)" style="text-transform: uppercase;">
@@ -748,13 +775,14 @@
                         <p>Current Market Price: <strong>Rs. <span id="res-price">0.00</span></strong></p>
                         <div style="display: flex; gap: 10px; margin-top: 15px;">
                             <input type="number" id="trade-qty" placeholder="Units (e.g. 10)" min="10">
-                            <button onclick="processTrade('buy')" style="background: #27ae60;">Buy Now</button>
+                            <button id="buy-share-btn" onclick="processTrade('buy')" style="background: #27ae60;">Buy Now</button>
                         </div>
+                        <p id="buy-share-status" class="hidden" style="margin: 10px 0 0; color: #b45309;"></p>
                     </div>
 
                     <div class="my-portfolio" style="margin-top: 30px;">
                         <h3>My Portfolio</h3>
-                        <table class="transaction-list-mini" style="width: 100%; text-align: left;">
+                        <table id="portfolio-table" class="transaction-list-mini">
                             <thead>
                                 <tr>
                                     <th>Company Name</th>
@@ -762,7 +790,8 @@
                                     <th>Units</th>
                                     <th>Avg. Cost</th>
                                     <th>Current Price</th>
-                                    <th>Profit/Loss</th>
+                                    <th>Total Value</th>
+                                    <th>Total Profit/Loss</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>

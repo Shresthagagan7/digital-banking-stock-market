@@ -231,16 +231,20 @@ app.post('/api/logout', (req, res) => {
     });
 });
 
-app.post('/api/change-password', async (req, res) => {
-    const { userId, oldPassword, newPassword } = req.body;
-    db.query("SELECT password FROM users WHERE id = ?", [userId], async (err, result) => {
+app.post('/api/change-password', authenticateToken, async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
+    if (!passwordRegex.test(String(newPassword || '').trim())) {
+        return res.status(400).json({ message: 'Password must be 8+ characters with a letter, a number, and a special character.' });
+    }
+    db.query("SELECT password FROM users WHERE id = ?", [req.user.id], async (err, result) => {
         if (err || result.length === 0) return res.status(404).json({ message: "User not found" });
 
         const isMatch = await bcrypt.compare(oldPassword, result[0].password);
         if (!isMatch) return res.status(401).json({ message: "Incorrect old password" });
 
         const hashed = await bcrypt.hash(newPassword, 10);
-        db.query("UPDATE users SET password = ? WHERE id = ?", [hashed, userId], (err) => {
+        db.query("UPDATE users SET password = ? WHERE id = ?", [hashed, req.user.id], (err) => {
             if (err) return res.status(500).json({ message: "Failed to update password" });
             res.json({ message: "Password changed successfully!" });
         });
@@ -541,6 +545,25 @@ app.get('/api/trading-wallet', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error('Trading wallet fetch error:', err);
         res.status(500).json({ message: 'Could not load trading wallet.' });
+    }
+});
+
+app.post('/api/change-transaction-pin', authenticateToken, async (req, res) => {
+    const oldPin = String(req.body.oldPin || '');
+    const newPin = String(req.body.newPin || '');
+    if (!/^\d{4}$/.test(oldPin) || !/^\d{4}$/.test(newPin)) {
+        return res.status(400).json({ message: 'Both transaction PINs must be exactly 4 digits.' });
+    }
+    if (oldPin === newPin) return res.status(400).json({ message: 'New PIN must be different from current PIN.' });
+    try {
+        const [[user]] = await db.promise().query('SELECT transaction_pin FROM users WHERE id = ?', [req.user.id]);
+        if (!user) return res.status(404).json({ message: 'User not found.' });
+        if (!await bcrypt.compare(oldPin, user.transaction_pin)) return res.status(401).json({ message: 'Current transaction PIN is incorrect.' });
+        const hashedPin = await bcrypt.hash(newPin, 10);
+        await db.promise().query('UPDATE users SET transaction_pin = ? WHERE id = ?', [hashedPin, req.user.id]);
+        res.json({ message: 'Transaction PIN changed successfully.' });
+    } catch (err) {
+        res.status(500).json({ message: 'Could not update transaction PIN.' });
     }
 });
 app.post('/api/trading-wallet/transfer', authenticateToken, async (req, res) => {

@@ -98,11 +98,22 @@ exports.updateStockPrice = async (req, res) => {
 };
 
 exports.getStockPriceBySymbol = async (req, res) => {
-    const { symbol } = req.params;
+    const symbol = String(req.params.symbol || '').trim().toUpperCase();
     try {
-        const [[stock]] = await db.promise().query("SELECT symbol, current_price FROM stocks WHERE symbol = ?", [symbol.toUpperCase()]);
+        const [[stock]] = await db.promise().query(`
+            SELECT s.symbol, s.current_price,
+                   EXISTS (
+                       SELECT 1 FROM share_offerings o
+                       WHERE o.symbol = s.symbol
+                         AND o.status = 'open'
+                         AND o.open_date <= CURDATE()
+                         AND o.close_date >= CURDATE()
+                   ) AS can_buy
+            FROM stocks s
+            WHERE s.symbol = ?
+        `, [symbol]);
         if (!stock) return res.status(404).json({ message: "Stock not found." });
-        res.json(stock);
+        res.json({ ...stock, can_buy: Number(stock.can_buy) === 1 });
     } catch (err) {
         res.status(500).json({ message: "Server error." });
     }
@@ -245,7 +256,14 @@ exports.processAllotment = async (req, res) => {
                 // c. Add/Update shares in user's portfolio
                 const [existing] = await connection.query("SELECT * FROM portfolio WHERE user_id = ? AND symbol = ?", [userId, offering.symbol]);
                 if (existing.length > 0) {
-                    await connection.query("UPDATE portfolio SET quantity = quantity + ? WHERE id = ?", [allottedUnits, existing[0].id]);
+                    const oldQuantity = Number(existing[0].quantity);
+                    const oldAveragePrice = Number(existing[0].average_price);
+                    const newQuantity = oldQuantity + allottedUnits;
+                    const newAveragePrice = ((oldQuantity * oldAveragePrice) + allottedAmount) / newQuantity;
+                    await connection.query(
+                        "UPDATE portfolio SET quantity = ?, average_price = ? WHERE id = ?",
+                        [newQuantity, newAveragePrice, existing[0].id]
+                    );
                 } else {
                     await connection.query("INSERT INTO portfolio (user_id, symbol, quantity, average_price) VALUES (?, ?, ?, ?)", [userId, offering.symbol, allottedUnits, offering.price_per_unit]);
                 }
