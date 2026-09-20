@@ -611,6 +611,14 @@
 
                     <input type="text" id="transfer-acc-no" placeholder="Recipient Account Number *" required onkeyup="fetchRecipientName()">
                     <input type="text" id="transfer-acc-name" placeholder="Recipient Name *" required>
+                    <div class="beneficiary-tools">
+                        <select id="beneficiary-select" onchange="selectBeneficiary(this.value)">
+                            <option value="">Saved beneficiaries</option>
+                        </select>
+                        <input type="text" id="beneficiary-nickname" placeholder="Nickname to save (e.g. Home)" maxlength="50">
+                        <button type="button" onclick="saveBeneficiary()" style="width: auto; background: #0f766e;">Save Beneficiary</button>
+                    </div>
+                    <div id="beneficiary-list" class="beneficiary-list"></div>
                     <input type="number" id="transfer-amount" placeholder="Amount (Rs.) *" required>
                     <input type="text" id="transfer-remarks" placeholder="Remarks (Optional)">
                     <input type="password" id="transfer-pin" placeholder="Transaction PIN *" required maxlength="4">
@@ -710,53 +718,15 @@
 
             
                 <div id="cash-deposit-section" class="container hidden">
-                    <h2>Cash Deposit Module</h2>
-                    
-        
-                    <div id="cd-form-container">
-                        <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; text-align: left; margin-bottom: 20px;">
-                            <div>
-                                <label>Account Number</label>
-                                <input type="text" id="cd-acc-num" readonly style="background: #eee;">
-                            </div>
-                            <div>
-                                <label>Customer Name</label>
-                                <input type="text" id="cd-user-name" readonly style="background: #eee;">
-                            </div>
-                            <div>
-                                <label>Deposit Amount (Rs.)</label>
-                                <input type="number" id="cd-amount" placeholder="Enter Cash Amount" min="0">
-                            </div>
-                            <div>
-                                <label>Deposit Date</label>
-                                <input type="date" id="cd-date" required>
-                            </div>
-                            <div>
-                                <label>Branch</label>
-                                <input type="text" id="cd-branch" value="Main Branch Kathmandu">
-                            </div>
-                            <div>
-                                <label>Received By (Teller)</label>
-                                <input type="text" id="cd-received-by" value="Teller-09">
-                            </div>
-                            <div>
-                                <label>Remarks</label>
-                                <input type="text" id="cd-remarks" placeholder="Notes...">
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 10px;">
-                            <button onclick="processCashDeposit()" style="background: #27ae60;">Verify & Submit Deposit</button>
-                            <button onclick="printDepositSlip()" id="cd-print-btn" class="hidden" style="background: #3498db;">Print Deposit Slip</button>
-                        </div>
-                    </div>
-
-                    
-                    <div id="cd-summary" style="margin-top: 30px; text-align: left; border-top: 2px solid #eee; padding-top: 15px;">
-                        <h3>Daily Cash Summary: <span id="cd-daily-total" style="color: #2c3e50;">Rs. 0.00</span></h3>
-                        <h4>Recent Deposits</h4>
-                        <ul id="cd-history-list" class="transaction-list-mini" style="max-height: 200px; overflow-y: auto;">
-                            <li>No deposits processed today.</li>
-                        </ul>
+                    <h2>Deposit to Account</h2>
+                    <div class="deposit-to-account-box">
+                        <p>Use your available bank balance to pay school fees, class fees, or another person's account.</p>
+                        <input type="text" id="deposit-recipient-account" placeholder="Recipient Account Number" onkeyup="fetchDepositRecipientName()">
+                        <input type="text" id="deposit-recipient-name" placeholder="Recipient Name" readonly>
+                        <input type="number" id="deposit-to-account-amount" min="1" step="0.01" placeholder="Amount (Rs.)">
+                        <input type="text" id="deposit-to-account-remarks" placeholder="Purpose (e.g. School fee)">
+                        <input type="password" id="deposit-to-account-pin" inputmode="numeric" maxlength="4" placeholder="Your 4-digit Transaction PIN">
+                        <button type="button" onclick="processDepositToAccount()" style="background: #0f766e;">Deposit to Account</button>
                     </div>
 
                     <button onclick="showDashboardPanel('main-view')" style="background: #95a5a6; margin-top: 20px;">Back to Dashboard</button>

@@ -742,6 +742,24 @@ body.dark-mode #portfolio-table td {
 .wallet-action-buttons button { width: auto; padding: 10px 16px; background: #7c3aed; }
 .wallet-action-buttons .trading-withdraw { background: #475569; }
 
+.beneficiary-tools { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; margin: 8px 0 6px; }
+.beneficiary-tools input, .beneficiary-tools select { margin: 0; min-width: 0; }
+.beneficiary-tools button { margin: 0; padding: 10px 12px; }
+.beneficiary-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.beneficiary-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 999px; color: #334155; background: #f8fafc; font-size: 12px; }
+.beneficiary-chip button { border: 0; background: transparent; color: #64748b; cursor: pointer; padding: 0 2px; font-size: 16px; line-height: 1; }
+
+.deposit-to-account-box { margin-top: 28px; padding: 20px; border: 1px solid #99f6e4; border-radius: 8px; background: #f0fdfa; text-align: left; }
+.deposit-to-account-box h3 { margin-top: 0; color: #115e59; }
+.deposit-to-account-box p { color: #475569; font-size: 14px; }
+.deposit-to-account-box input { box-sizing: border-box; width: 100%; margin-bottom: 10px; }
+.deposit-to-account-box button { width: auto; }
+
+@media (max-width: 650px) {
+    .beneficiary-tools { grid-template-columns: 1fr; }
+    .beneficiary-tools button { width: 100%; }
+}
+
 @media (max-width: 800px) {
     .statement-heading { display: block; }
     .statement-period { margin-top: 8px; }

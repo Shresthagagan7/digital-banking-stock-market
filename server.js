@@ -621,22 +621,53 @@ app.post('/api/asba/apply', authenticateToken, userController.applyForShare);
 
 
 
-app.post('/api/deposit', authenticateToken, async (req, res) => {
-    const { userId, amount, branch, remarks } = req.body;
-    try {
-        await db.promise().query("UPDATE users SET balance = balance + ? WHERE id = ?", [amount, userId]);
-        await db.promise().query("INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'credit', ?, ?)", 
-            [userId, amount, `Cash Deposit at ${branch}: ${remarks || 'None'}`]);
-        
-        // Send Notification to User
-        await db.promise().query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", 
-            [userId, `Rs. ${parseFloat(amount).toLocaleString()} has been deposited into your account via Cash Deposit.`]);
+app.post('/api/deposit-to-account', authenticateToken, async (req, res) => {
+    const amount = Number(req.body.amount);
+    const recipientAccount = String(req.body.recipientAccount || '').trim();
+    const pin = String(req.body.pin || '');
+    const remarks = String(req.body.remarks || '').trim();
+    if (!Number.isFinite(amount) || amount <= 0 || !recipientAccount || !/^\d{4}$/.test(pin)) {
+        return res.status(400).json({ message: 'Enter a valid account, amount, and 4-digit transaction PIN.' });
+    }
 
-        const [newBal] = await db.promise().query("SELECT balance FROM users WHERE id = ?", [userId]);
-        res.json({ message: "Deposit processed successfully!", newBalance: newBal[0].balance });
+    let connection;
+    try {
+        connection = await db.promise().getConnection();
+        await connection.beginTransaction();
+
+        const [[sender]] = await connection.query(
+            'SELECT id, first_name, balance, transaction_pin FROM users WHERE id = ? FOR UPDATE',
+            [req.user.id]
+        );
+        const [[recipient]] = await connection.query(
+            'SELECT id, first_name, last_name FROM users WHERE account_number = ? FOR UPDATE',
+            [recipientAccount]
+        );
+        if (!sender || !recipient) throw new Error('Recipient account not found in this bank.');
+        if (Number(sender.id) === Number(recipient.id)) throw new Error('Use Cash Deposit for your own account.');
+        if (Number(sender.balance) < amount) throw new Error('Insufficient balance.');
+        if (!(await bcrypt.compare(pin, sender.transaction_pin))) throw new Error('Invalid Transaction PIN.');
+
+        await connection.query('UPDATE users SET balance = balance - ? WHERE id = ?', [amount, sender.id]);
+        await connection.query('UPDATE users SET balance = balance + ? WHERE id = ?', [amount, recipient.id]);
+        await connection.query(
+            "INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'debit', ?, ?), (?, 'credit', ?, ?)",
+            [sender.id, amount, `Account Payment to ${recipient.first_name} ${recipient.last_name} (${recipientAccount})${remarks ? `: ${remarks}` : ''}`,
+                recipient.id, amount, `Account Deposit from ${sender.first_name} (${req.user.id})`]
+        );
+        await connection.query('INSERT INTO notifications (user_id, message) VALUES (?, ?), (?, ?)', [
+            sender.id, `Rs. ${amount.toLocaleString()} deposited to account ${recipientAccount}.`,
+            recipient.id, `You received Rs. ${amount.toLocaleString()} in your account.`
+        ]);
+
+        const [[updatedSender]] = await connection.query('SELECT balance FROM users WHERE id = ?', [sender.id]);
+        await connection.commit();
+        res.json({ message: 'Amount deposited to the recipient account successfully.', newBalance: updatedSender.balance });
     } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Failed to process deposit" });
+        if (connection) await connection.rollback();
+        res.status(400).json({ message: err.message || 'Could not deposit to the recipient account.' });
+    } finally {
+        if (connection) connection.release();
     }
 });
 
@@ -732,6 +763,62 @@ app.get('/api/user-by-account/:accountNumber', authenticateToken, async (req, re
     } catch (err) {
         console.error("Error fetching user by account number:", err);
         res.status(500).json({ message: "Server error." });
+    }
+});
+
+app.get('/api/beneficiaries', authenticateToken, async (req, res) => {
+    try {
+        const [beneficiaries] = await db.promise().query(
+            'SELECT id, account_number, recipient_name, nickname FROM beneficiaries WHERE user_id = ? ORDER BY nickname ASC, id DESC',
+            [req.user.id]
+        );
+        res.json(beneficiaries);
+    } catch (err) {
+        console.error('Error fetching beneficiaries:', err);
+        res.status(500).json({ message: 'Could not load beneficiaries.' });
+    }
+});
+
+app.post('/api/beneficiaries', authenticateToken, async (req, res) => {
+    const accountNumber = String(req.body.accountNumber || '').trim();
+    const nickname = String(req.body.nickname || '').trim();
+    if (!accountNumber || !nickname || nickname.length > 50) {
+        return res.status(400).json({ message: 'Account number and a nickname are required.' });
+    }
+
+    try {
+        const [users] = await db.promise().query(
+            'SELECT id, first_name, last_name FROM users WHERE account_number = ?',
+            [accountNumber]
+        );
+        if (!users.length) return res.status(404).json({ message: 'Recipient account not found in this bank.' });
+        if (Number(users[0].id) === Number(req.user.id)) {
+            return res.status(400).json({ message: 'You cannot save your own account as a beneficiary.' });
+        }
+
+        await db.promise().query(
+            'INSERT INTO beneficiaries (user_id, account_number, recipient_name, nickname) VALUES (?, ?, ?, ?)',
+            [req.user.id, accountNumber, `${users[0].first_name} ${users[0].last_name}`, nickname]
+        );
+        res.status(201).json({ message: 'Beneficiary saved successfully.' });
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ message: 'This account is already saved as a beneficiary.' });
+        console.error('Error saving beneficiary:', err);
+        res.status(500).json({ message: 'Could not save beneficiary.' });
+    }
+});
+
+app.delete('/api/beneficiaries/:id', authenticateToken, async (req, res) => {
+    try {
+        const [result] = await db.promise().query(
+            'DELETE FROM beneficiaries WHERE id = ? AND user_id = ?',
+            [req.params.id, req.user.id]
+        );
+        if (!result.affectedRows) return res.status(404).json({ message: 'Beneficiary not found.' });
+        res.json({ message: 'Beneficiary removed.' });
+    } catch (err) {
+        console.error('Error removing beneficiary:', err);
+        res.status(500).json({ message: 'Could not remove beneficiary.' });
     }
 });
 
@@ -935,6 +1022,23 @@ async function initializeApp() {
                   INDEX \`watchlist_user_idx\` (\`user_id\`)
                 );`);
             console.log("Table 'watchlist' created successfully.");
+        }
+
+        const [beneficiariesTable] = await db.promise().query("SHOW TABLES LIKE 'beneficiaries'");
+        if (beneficiariesTable.length === 0) {
+            await db.promise().query(`
+                CREATE TABLE \`beneficiaries\` (
+                  \`id\` INT NOT NULL AUTO_INCREMENT,
+                  \`user_id\` INT NOT NULL,
+                  \`account_number\` VARCHAR(30) NOT NULL,
+                  \`recipient_name\` VARCHAR(120) NOT NULL,
+                  \`nickname\` VARCHAR(50) NOT NULL,
+                  \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (\`id\`),
+                  UNIQUE KEY \`user_beneficiary_account_unique\` (\`user_id\`, \`account_number\`),
+                  INDEX \`beneficiaries_user_idx\` (\`user_id\`)
+                );`);
+            console.log("Table 'beneficiaries' created successfully.");
         }
 
         // Now register the share admin routes, as the database is ready

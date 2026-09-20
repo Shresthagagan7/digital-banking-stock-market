@@ -583,93 +583,60 @@ function escapeMarketText(value) {
 }
 function openCashDeposit() {
     showDashboardPanel('cash-deposit-section');
-    if (currentUser) {
-        document.getElementById('cd-acc-num').value = currentUser.account_number;
-        document.getElementById('cd-user-name').value = `${currentUser.first_name} ${currentUser.last_name}`;
-        document.getElementById('cd-date').valueAsDate = new Date();
-        loadDepositHistory();
-    }
 }
-async function processCashDeposit() {
-    const amount = parseFloat(document.getElementById('cd-amount').value);
-    const date = document.getElementById('cd-date').value;
-    const branch = document.getElementById('cd-branch').value;
-    const receivedBy = document.getElementById('cd-received-by').value;
-    const remarks = document.getElementById('cd-remarks').value;
 
-    if (receivedBy === "") {
-        alert("Teller ID is required for verification.");
+async function fetchDepositRecipientName() {
+    const account = document.getElementById('deposit-recipient-account').value.trim();
+    const name = document.getElementById('deposit-recipient-name');
+    if (currentUser && account === String(currentUser.account_number)) {
+        name.value = 'Cannot deposit to your own account';
         return;
     }
-    if (isNaN(amount) || amount <= 0) return alert("Please enter a valid amount.");
-    const res = await fetch('/api/deposit', {
-        credentials: 'include',
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ userId: currentUser.id, amount, date, branch, receivedBy, remarks }),
+    if (account.length < 10) {
+        name.value = '';
+        return;
+    }
+    name.value = 'Fetching name...';
+    try {
+        const response = await fetch(`/api/user-by-account/${encodeURIComponent(account)}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('Account not found');
+        const user = await response.json();
+        name.value = `${user.first_name} ${user.last_name}`;
+    } catch (error) {
+        name.value = 'Account not found';
+    }
+}
+
+async function processDepositToAccount() {
+    const recipientAccount = document.getElementById('deposit-recipient-account').value.trim();
+    const recipientName = document.getElementById('deposit-recipient-name').value;
+    const amount = Number(document.getElementById('deposit-to-account-amount').value);
+    const remarks = document.getElementById('deposit-to-account-remarks').value.trim();
+    const pin = document.getElementById('deposit-to-account-pin').value;
+    if (currentUser && recipientAccount === String(currentUser.account_number)) {
+        return alert('You cannot deposit to your own account. Enter another account number.');
+    }
+    if (!recipientAccount || !recipientName || recipientName === 'Account not found' || recipientName === 'Fetching name...' || recipientName === 'Cannot deposit to your own account') {
+        return alert('Enter a valid recipient account first.');
+    }
+    if (!Number.isFinite(amount) || amount <= 0) return alert('Enter a valid amount.');
+    if (!/^\d{4}$/.test(pin)) return alert('Enter your 4-digit transaction PIN.');
+    if (!confirm(`Deposit Rs. ${amount.toLocaleString()} to ${recipientName}?`)) return;
+
+    const response = await fetch('/api/deposit-to-account', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipientAccount, amount, remarks, pin })
     });
-    if (res.ok) {
-        const result = await res.json();
-        alert(result.message);
-        currentUser.balance = result.newBalance;
-        updateUI();
-        loadDepositHistory();
-        document.getElementById('cd-print-btn').classList.remove('hidden');
-    } else {
-        alert("Failed to process deposit.");
-    }
+    const result = await response.json();
+    alert(result.message);
+    if (!response.ok) return;
+    currentUser.balance = result.newBalance;
+    updateUI();
+    document.getElementById('deposit-to-account-amount').value = '';
+    document.getElementById('deposit-to-account-remarks').value = '';
+    document.getElementById('deposit-to-account-pin').value = '';
 }
-async function loadDepositHistory() {
-    const res = await fetch(`/api/transactions/${currentUser.id}`, { credentials: 'include' });
-    const transactions = await res.json();
-    const list = document.getElementById('cd-history-list');
-    const dailyTotalElem = document.getElementById('cd-daily-total');
-    
-    const deposits = transactions.filter(t => t.description.toLowerCase().includes('deposit'));
-    let dailyTotal = 0;
 
-    if (deposits.length > 0) {
-        list.innerHTML = deposits.map(t => {
-            dailyTotal += parseFloat(t.amount); 
-            const reverseBtn = `<button onclick="alert('Transaction Reversed. Amount deducted.')" style="padding: 2px 5px; font-size: 10px; background: #e74c3c;">Reverse</button>`;
-            return `<li>[${new Date(t.transaction_date).toLocaleDateString()}] <strong>Rs. ${parseFloat(t.amount).toLocaleString()}</strong> - ${t.description} ${reverseBtn}</li>`;
-        }).join('');
-    } else {
-        list.innerHTML = "No deposits yet.";
-    }
-    dailyTotalElem.innerText = `Rs. ${dailyTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-function printDepositSlip() {
-    const acc = document.getElementById('cd-acc-num').value;
-    const name = document.getElementById('cd-user-name').value;
-    const amt = document.getElementById('cd-amount').value;
-    const date = new Date().toLocaleString();
-    const branch = document.getElementById('cd-branch').value;
-    const teller = document.getElementById('cd-received-by').value;
-
-    const slipContent = `
-        ===============================
-        CASH DEPOSIT SLIP - mero-Bank
-        ===============================
-        Date: ${date}
-        Branch: ${branch}
-        
-        Account No: ${acc}
-        Account Holder: ${name}
-        Deposit Amount: Rs. ${parseFloat(amt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        
-        Teller Verification: ${teller} (Verified)
-        Status: SUCCESSFUL
-        ===============================
-    `;
-
-    const printWindow = window.open('', '', 'height=500,width=700');
-    printWindow.document.write('<pre>' + slipContent + '</pre>');
-    printWindow.document.close();
-    printWindow.print();
-}
 function getGreeting() {
     const hour = new Date().getHours();
     if (hour < 12) return "Good Morning,";
@@ -1617,7 +1584,70 @@ function openSendMoney() {
     if (currentUser) { 
         document.getElementById('transfer-from-acc-display').innerText = `Savings Account - ${currentUser.account_number}`;
         document.getElementById('transfer-from-info').innerText = `Available Balance : Rs. ${parseFloat(currentUser.balance).toLocaleString()}`;
+        loadBeneficiaries();
     }
+}
+
+async function loadBeneficiaries() {
+    const select = document.getElementById('beneficiary-select');
+    const list = document.getElementById('beneficiary-list');
+    if (!select || !list) return;
+    try {
+        const response = await fetch('/api/beneficiaries', { credentials: 'include' });
+        if (!response.ok) throw new Error('Could not load beneficiaries.');
+        const beneficiaries = await response.json();
+        select.innerHTML = '<option value="">Saved beneficiaries</option>' + beneficiaries.map(beneficiary =>
+            `<option value="${beneficiary.id}">${escapeStatementHtml(beneficiary.nickname)} - ${escapeStatementHtml(beneficiary.recipient_name)}</option>`
+        ).join('');
+        list.innerHTML = beneficiaries.length ? beneficiaries.map(beneficiary => `
+            <span class="beneficiary-chip">
+                ${escapeStatementHtml(beneficiary.nickname)} (${escapeStatementHtml(beneficiary.account_number)})
+                <button type="button" title="Remove beneficiary" onclick="removeBeneficiary(${beneficiary.id})">×</button>
+            </span>`).join('') : '';
+    } catch (error) {
+        select.innerHTML = '<option value="">Saved beneficiaries unavailable</option>';
+        list.innerHTML = '';
+    }
+}
+
+async function selectBeneficiary(beneficiaryId) {
+    if (!beneficiaryId) return;
+    const response = await fetch('/api/beneficiaries', { credentials: 'include' });
+    if (!response.ok) return;
+    const beneficiary = (await response.json()).find(item => String(item.id) === String(beneficiaryId));
+    if (!beneficiary) return;
+    document.getElementById('transfer-acc-no').value = beneficiary.account_number;
+    document.getElementById('transfer-acc-name').value = beneficiary.recipient_name;
+}
+
+async function saveBeneficiary() {
+    const accountNumber = document.getElementById('transfer-acc-no').value.trim();
+    const nickname = document.getElementById('beneficiary-nickname').value.trim();
+    const recipientName = document.getElementById('transfer-acc-name').value.trim();
+    if (!accountNumber || !recipientName || recipientName === 'Account not found' || recipientName === 'Fetching name...') {
+        return alert('Enter a valid same-bank recipient account first.');
+    }
+    if (!nickname) return alert('Enter a nickname for this beneficiary.');
+    const response = await fetch('/api/beneficiaries', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountNumber, nickname })
+    });
+    const result = await response.json();
+    alert(result.message);
+    if (response.ok) {
+        document.getElementById('beneficiary-nickname').value = '';
+        loadBeneficiaries();
+    }
+}
+
+async function removeBeneficiary(beneficiaryId) {
+    if (!confirm('Remove this saved beneficiary?')) return;
+    const response = await fetch(`/api/beneficiaries/${beneficiaryId}`, {
+        method: 'DELETE', credentials: 'include'
+    });
+    const result = await response.json();
+    alert(result.message);
+    if (response.ok) loadBeneficiaries();
 }
 
 function toggleOtherBankFields() {
@@ -1852,7 +1882,7 @@ async function processBillPayment() {
 }
 function filterTransactions() {
     const term = document.getElementById('search-transactions').value.toLowerCase();
-    const items = document.querySelectorAll('#transaction-list li, #cd-history-list li');
+    const items = document.querySelectorAll('#transaction-list li');
     
     items.forEach(item => {
         const text = item.textContent.toLowerCase();
