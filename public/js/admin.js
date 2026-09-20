@@ -129,6 +129,7 @@ async function fetchAdminData(adminUser, filter = "") {
         renderPendingUsers(allPendingUsers);
         renderUsers(allUsers, filter);
         renderAdminShareHolders(shareHolderData);
+        loadSavingsInterestRate();
 
     } catch (err) {
         console.error("Fetch Error:", err);
@@ -639,4 +640,23 @@ async function updateStockPrice(stockId) {
     const result = await res.json();
     alert(result.message);
     if (res.ok) { fetchStocksForUpdate(); }
+}
+
+async function loadSavingsInterestRate() {
+    const input = document.getElementById('savings-interest-rate');
+    if (!input) return;
+    const response = await fetch('/api/admin/savings-interest-rate', { credentials: 'include' });
+    if (response.ok) input.value = (await response.json()).rate;
+}
+
+async function saveSavingsInterestRate() {
+    const input = document.getElementById('savings-interest-rate');
+    const rate = Number(input.value);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) return alert('Enter a rate between 0 and 100.');
+    const response = await fetch('/api/admin/savings-interest-rate', {
+        method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rate })
+    });
+    const result = await response.json();
+    alert(result.message);
 }

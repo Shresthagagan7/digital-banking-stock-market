@@ -1,5 +1,34 @@
 const db = require('../db');
 
+exports.getSavingsInterestRate = async (req, res) => {
+    try {
+        const [[setting]] = await db.promise().query(
+            "SELECT setting_value FROM system_settings WHERE setting_key = 'savings_interest_rate'"
+        );
+        res.json({ rate: Number(setting?.setting_value || 3) });
+    } catch (err) {
+        console.error('Error fetching savings interest rate:', err);
+        res.status(500).json({ message: 'Could not load savings interest rate.' });
+    }
+};
+
+exports.updateSavingsInterestRate = async (req, res) => {
+    const rate = Number(req.body.rate);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+        return res.status(400).json({ message: 'Enter an interest rate between 0 and 100.' });
+    }
+    try {
+        await db.promise().query(
+            "INSERT INTO system_settings (setting_key, setting_value) VALUES ('savings_interest_rate', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+            [rate.toFixed(2)]
+        );
+        res.json({ message: `Savings interest rate updated to ${rate.toFixed(2)}%.`, rate });
+    } catch (err) {
+        console.error('Error updating savings interest rate:', err);
+        res.status(500).json({ message: 'Could not update savings interest rate.' });
+    }
+};
+
 const logAction = (adminId, action, details) => {
     db.query("INSERT INTO audit_logs (admin_id, action, details) VALUES (?, ?, ?)", [adminId, action, details]);
 };

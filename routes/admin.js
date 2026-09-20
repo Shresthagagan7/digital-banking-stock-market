@@ -16,6 +16,8 @@ router.get('/stats', adminController.getStats);
 router.get('/all-users', adminController.getAllUsers);
 router.get('/share-holders', adminController.getShareHolders);
 router.get('/pending-requests', adminController.getPendingRequests);
+router.get('/savings-interest-rate', adminController.getSavingsInterestRate);
+router.put('/savings-interest-rate', adminController.updateSavingsInterestRate);
 
 // Routes for admin actions
 router.post('/approve-user', adminController.approveUser);

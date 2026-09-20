@@ -961,6 +961,67 @@ app.post('/api/forgot-password/reset', async (req, res) => {
     });
 });
 
+app.get('/api/savings-interest-rate', authenticateToken, async (req, res) => {
+    try {
+        const [[setting]] = await db.promise().query(
+            "SELECT setting_value FROM system_settings WHERE setting_key = 'savings_interest_rate'"
+        );
+        res.json({ rate: Number(setting?.setting_value || 3) });
+    } catch (err) {
+        res.status(500).json({ message: 'Could not load savings interest rate.' });
+    }
+});
+
+app.post('/api/savings-interest/apply', authenticateToken, async (req, res) => {
+    const monthKey = new Date().toISOString().slice(0, 7);
+    let connection;
+    try {
+        connection = await db.promise().getConnection();
+        await connection.beginTransaction();
+        const [[user]] = await connection.query('SELECT balance FROM users WHERE id = ? FOR UPDATE', [req.user.id]);
+        if (!user) throw new Error('User account not found.');
+        const [[rateSetting]] = await connection.query(
+            "SELECT setting_value FROM system_settings WHERE setting_key = 'savings_interest_rate'"
+        );
+        const annualRatePercent = Number(rateSetting?.setting_value || 3);
+        const annualRate = annualRatePercent / 100;
+
+        const description = `Savings Interest - ${monthKey}`;
+        const [[alreadyApplied]] = await connection.query(
+            'SELECT id FROM transactions WHERE user_id = ? AND type = ? AND description = ? LIMIT 1',
+            [req.user.id, 'interest', description]
+        );
+        if (alreadyApplied) {
+            const [[current]] = await connection.query('SELECT balance FROM users WHERE id = ?', [req.user.id]);
+            await connection.commit();
+            return res.json({ message: `This month's ${annualRatePercent}% savings interest has already been added.`, interest: 0, newBalance: current.balance });
+        }
+
+        const interest = Math.round(Number(user.balance) * annualRate / 12 * 100) / 100;
+        if (interest <= 0) {
+            await connection.commit();
+            return res.json({ message: 'No interest was added because the savings balance is zero.', interest: 0, newBalance: user.balance });
+        }
+
+        await connection.query('UPDATE users SET balance = balance + ? WHERE id = ?', [interest, req.user.id]);
+        await connection.query(
+            "INSERT INTO transactions (user_id, type, amount, description) VALUES (?, 'interest', ?, ?)",
+            [req.user.id, interest, description]
+        );
+        await connection.query('INSERT INTO notifications (user_id, message) VALUES (?, ?)', [
+            req.user.id, `Rs. ${interest.toLocaleString()} savings interest at ${annualRatePercent}% annual rate was added to your account.`
+        ]);
+        const [[updated]] = await connection.query('SELECT balance FROM users WHERE id = ?', [req.user.id]);
+        await connection.commit();
+        res.json({ message: `Monthly savings interest of Rs. ${interest.toLocaleString()} added successfully.`, interest, newBalance: updated.balance });
+    } catch (err) {
+        if (connection) await connection.rollback();
+        res.status(400).json({ message: err.message || 'Could not apply savings interest.' });
+    } finally {
+        if (connection) connection.release();
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 
 async function initializeApp() {
@@ -1039,6 +1100,24 @@ async function initializeApp() {
                   INDEX \`beneficiaries_user_idx\` (\`user_id\`)
                 );`);
             console.log("Table 'beneficiaries' created successfully.");
+        }
+
+        const [settingsTable] = await db.promise().query("SHOW TABLES LIKE 'system_settings'");
+        if (settingsTable.length === 0) {
+            await db.promise().query(`
+                CREATE TABLE \`system_settings\` (
+                  \`setting_key\` VARCHAR(80) NOT NULL,
+                  \`setting_value\` VARCHAR(255) NOT NULL,
+                  PRIMARY KEY (\`setting_key\`)
+                );`);
+            await db.promise().query(
+                "INSERT INTO system_settings (setting_key, setting_value) VALUES ('savings_interest_rate', '3.00')"
+            );
+            console.log("Table 'system_settings' created successfully.");
+        } else {
+            await db.promise().query(
+                "INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('savings_interest_rate', '3.00')"
+            );
         }
 
         // Now register the share admin routes, as the database is ready

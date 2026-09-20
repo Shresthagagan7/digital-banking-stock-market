@@ -419,6 +419,7 @@ function connectMarketSocket() {
         if (message.type === 'market:price-updated') {
             if (!document.getElementById('market-overview-section')?.classList.contains('hidden')) loadMarketOverview();
             if (!document.getElementById('watchlist-section')?.classList.contains('hidden')) loadWatchlist();
+            if (!document.getElementById('share-market-section')?.classList.contains('hidden')) loadPortfolio();
         }
     };
     marketSocket.onclose = () => { marketSocket = null; setTimeout(connectMarketSocket, 5000); };
@@ -572,10 +573,18 @@ function createMarketChart(values, movement) {
     const points = values.map((value, index) => {
         const x = values.length === 1 ? width / 2 : padding + (index * (width - padding * 2)) / (values.length - 1);
         const y = height - padding - ((value - min) / range) * (height - padding * 2);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(' ');
-    const color = movement === 'up' ? '#18a66a' : '#df4d5d';
-    return `<svg viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="none"><polyline points="${points}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+        return { x, y };
+    });
+    const segments = points.slice(1).map((point, index) => {
+        const previousPoint = points[index];
+        const color = values[index + 1] > values[index]
+            ? '#18a66a'
+            : values[index + 1] < values[index]
+                ? '#df4d5d'
+                : '#98a2b3';
+        return `<line x1="${previousPoint.x.toFixed(1)}" y1="${previousPoint.y.toFixed(1)}" x2="${point.x.toFixed(1)}" y2="${point.y.toFixed(1)}" stroke="${color}" stroke-width="4" stroke-linecap="round" />`;
+    }).join('');
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" preserveAspectRatio="none">${segments}</svg>`;
 }
 
 function escapeMarketText(value) {
@@ -977,6 +986,9 @@ async function viewMyAccounts() {
     if (!currentUser) return;
     showDashboardPanel('my-accounts-section');
 
+    await loadSavingsInterestRateLabel();
+    await applySavingsInterest(true);
+
     const fullName = `${currentUser.first_name} ${currentUser.last_name}`;
     const balance = parseFloat(currentUser.balance) || 0;
     const holdAmount = parseFloat(currentUser.hold_balance) || 0;
@@ -1059,6 +1071,38 @@ async function viewMyAccounts() {
     document.getElementById('info-number').innerText = currentUser.account_number;
     document.getElementById('info-date').innerText = currentUser.dob || '2025-01-01';
     loadTradingWallet();
+}
+
+async function loadSavingsInterestRateLabel() {
+    const label = document.getElementById('savings-interest-rate-label');
+    if (!label) return;
+    try {
+        const response = await fetch('/api/savings-interest-rate', { credentials: 'include' });
+        if (!response.ok) throw new Error('Rate unavailable');
+        const { rate } = await response.json();
+        label.textContent = `${Number(rate).toFixed(2).replace(/\.00$/, '')}% yearly`;
+    } catch (error) {
+        label.textContent = 'Interest unavailable';
+    }
+}
+
+async function applySavingsInterest(silent = false) {
+    const response = await fetch('/api/savings-interest/apply', {
+        method: 'POST', credentials: 'include'
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        if (!silent) alert(result.message);
+        return;
+    }
+    if (currentUser) currentUser.balance = Number(result.newBalance);
+    if (!silent || result.interest > 0) alert(result.message);
+    if (silent && result.interest > 0) {
+        const balance = Number(result.newBalance) || 0;
+        document.getElementById('top-avail-bal').innerText = `Rs. ${balance.toLocaleString()}`;
+        document.getElementById('det-avail-bal').innerText = `Rs. ${balance.toLocaleString()}`;
+        updateUI();
+    }
 }
 
 async function openProfile() {

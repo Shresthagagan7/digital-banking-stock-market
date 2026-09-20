@@ -66,6 +66,16 @@
         </div>
 
         <div class="my-section admin-table-container">
+            <h3>Savings Interest Settings</h3>
+            <p>Set the annual interest rate applied to customer savings accounts.</p>
+            <div class="interest-setting-form">
+                <label for="savings-interest-rate">Annual Interest Rate (%)</label>
+                <input type="number" id="savings-interest-rate" min="0" max="100" step="0.01" placeholder="3.00">
+                <button type="button" onclick="saveSavingsInterestRate()">Save Rate</button>
+            </div>
+        </div>
+
+        <div class="my-section admin-table-container">
             <h3>Registered Users Management</h3>
             <input type="text" id="user-search" placeholder="Search by name or account number..." style="padding: 10px; margin-bottom: 20px; width: 100%; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box;">
             
