@@ -103,8 +103,17 @@ async function loadPortfolio() {
                 const investment = avgPrice * quantity;
                 const currentValue = currentPrice * quantity;
                 const pnl = currentValue - investment;
+                const previousPrice = Number(item.previous_price);
+                const hasPreviousPrice = Number.isFinite(previousPrice);
+                const marketChange = hasPreviousPrice ? currentPrice - previousPrice : 0;
+                const recentPnl = marketChange * quantity;
                 const pnlClass = pnl >= 0 ? 'profit' : 'loss';
                 const pnlSign = pnl >= 0 ? '+' : '';
+                const marketChangeClass = marketChange >= 0 ? 'profit' : 'loss';
+                const marketChangeSign = marketChange >= 0 ? '+' : '';
+                const previousPriceDisplay = hasPreviousPrice ? `Rs. ${previousPrice.toFixed(2)}` : 'N/A';
+                const marketChangeDisplay = hasPreviousPrice ? `${marketChangeSign}Rs. ${marketChange.toFixed(2)}` : 'N/A';
+                const recentPnlDisplay = hasPreviousPrice ? `${marketChange >= 0 ? '+' : ''}Rs. ${recentPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A';
 
                 return `
                     <tr>
@@ -112,15 +121,18 @@ async function loadPortfolio() {
                         <td>${item.symbol}</td>
                         <td>${quantity}</td>
                         <td>Rs. ${avgPrice.toFixed(2)}</td>
+                        <td> ${previousPriceDisplay}</td>
                         <td>Rs. ${currentPrice.toFixed(2)}</td>
+                        <td class="${marketChangeClass}">${marketChangeDisplay}</td>
                         <td>Rs. ${currentValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td class="${pnlClass}">${pnlSign}Rs. ${pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td class="${marketChangeClass}">${recentPnlDisplay}</td>
                         <td><button onclick="sellFromPortfolio('${item.symbol}', ${quantity})" class="action-btn-red" style="padding: 2px 10px; font-size: 12px; cursor: pointer;">Sell</button></td>
                     </tr>`;
             })()}
         `).join('');
     } else {
-        tableBody.innerHTML = "<tr><td colspan='8'>No shares in portfolio.</td></tr>";
+        tableBody.innerHTML = "<tr><td colspan='11'>No shares in portfolio.</td></tr>";
     }
 }
 function sellFromPortfolio(symbol, maxQty) {

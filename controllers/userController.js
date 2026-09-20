@@ -110,7 +110,14 @@ exports.getPortfolio = async (req, res) => {
     // Use LEFT JOIN to ensure all portfolio items are returned, even if the stock is not listed in the 'stocks' table.
     // This prevents portfolio items from disappearing if a stock is delisted or not present in the stocks table.
     const query = ` 
-        SELECT p.symbol, p.quantity, p.average_price, s.name AS company_name, s.current_price
+        SELECT p.symbol, p.quantity, p.average_price, s.name AS company_name, s.current_price,
+               (
+                   SELECT history.price
+                   FROM stock_price_history history
+                   WHERE history.symbol = p.symbol
+                   ORDER BY history.recorded_at DESC, history.id DESC
+                   LIMIT 1 OFFSET 1
+               ) AS previous_price
         FROM portfolio p
         LEFT JOIN stocks s ON p.symbol = s.symbol
         WHERE p.user_id = ?
